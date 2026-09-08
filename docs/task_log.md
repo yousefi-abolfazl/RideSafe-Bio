@@ -77,7 +77,7 @@
 
 
 
-### Task 2.1 — فیلتر استاندارد پایین‌گذر Butterworth ۴قطبه، fc = 5 Hz ⏳ (پلن در انتظار تأیید)
+### Task 2.1 — فیلتر استاندارد پایین‌گذر Butterworth ۴قطبه، fc = 5 Hz ✅
 
 
 
@@ -85,30 +85,20 @@
 
 - **Checkpoints (پلن):**
 
-  - [ ] T1 — `src/config.py`: مکان مرکزی پارامترهای فیلتر (order=4، fc=5 Hz) با ارجاع استاندارد در کامنت؛ قابل override توسط آرگومان.
-
-  - [ ] T2 — `src/preprocessing.py`:
-
+  - [x] T1 — `src/config.py`: مکان مرکزی پارامترهای فیلتر (order=4، fc=5 Hz) با ارجاع استاندارد در کامنت؛ قابل override توسط آرگومان.
+  - [x] T2 — `src/preprocessing.py`:
     - `apply_butterworth_lowpass(df, column_mapping, sampling_rate, filter_params) -> pd.DataFrame`
-
     - تبدیل واحد $m/s^2 \to g$ (ضریب 9.80665) اختیاری و پیکربندی‌پذیر؛ وارونگی محور با ضرب در −1 به‌ازای هر محور.
-
     - بدون هیچ import از کتابخانه‌های UI (بند ۴ قرارداد).
+  - [x] T3 — `tests/test_preprocessing.py`: ۱۴ آزمون قطعی — همه پاس.
+  - [x] T4 — به‌روزرسانی Result در همین لاگ + commit `feat: ...`.
 
-  - [ ] T3 — `tests/test_preprocessing.py`: آزمون‌های قطعی: پایداری فیلتر، پاسخ پله، حفظ طول سیگنال، صحت تبدیل واحد، وارونگی محور، رفتار با fs نامعتبر.
 
-  - [ ] T4 — به‌روزرسانی Result در همین لاگ + commit `feat: ...`.
-
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
-
+- **Changes:**
   | فایل | تغییر | دلیل | نتیجه |
-
   |---|---|---|---|
-
-  | `src/config.py` | ایجاد | بند ۶: عدم هاردکد آستانه‌ها | — |
-
-  | `src/preprocessing.py` | ایجاد | تسک ۲.۱ | — |
-
-  | `tests/test_preprocessing.py` | ایجاد | بند ۷: V&V پیش از اتصال به داشبورد | — |
-
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `src/config.py` | ایجاد — `FILTER_DEFAULTS` (order=4، cutoff=5، zero_phase=False)، `MS2_TO_G`، نام ستون‌های کانونی | بند ۶: عدم هاردکد آستانه‌ها | ۸۰۹ بایت |
+  | `src/preprocessing.py` | ایجاد — `apply_butterworth_lowpass` (SOS + sosfilt پیش‌فرض، sosfiltfilt اختیاری)، `standardize_signal_frame` (نگاشت/واحد/وارونگی/زمان مصنوعی + متادیتا) | تسک ۲.۱ + سه تصمیم کارفرما | ۶.۶KB |
+  | `tests/test_preprocessing.py` | ایجاد — ۱۴ آزمون واحد | بند ۷: V&V پیش از اتصال به داشبورد | همه پاس |
+  | `docs/decisions.md` | ADR-7 ثبت شد | الزام تصمیم ۱ کارفرما (single-pass + SOS) | ✅ |
+- **Result / Validation:** ۱۴/۱۴ آزمون pytest پاس (شامل پایداری، پاسخ پله با بهره DC=1، میرایی 50Hz، عبور 0.5Hz، تشخیص zero_phase، خطاهای fs/Nyquist/نگاشت، تبدیل واحد، وارونگی، زمان مصنوعی و خطای «نه زمان نه fs»). بررسی خودکار: هیچ import ابزار UI در `src/` نیست (بند ۴). Smoke پایپ‌لاین واقعی standardize → filter موفق. دو باگ حین توسعه رفع شد: پاس‌دادن اشتباه "butter" به btype و عدم پشتیبانی نگاشت جزئی/خالی در فیلتر.
