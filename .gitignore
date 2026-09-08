@@ -1,0 +1,57 @@
+# ---------- Byte-code / cache ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ---------- Distribution / packaging ----------
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# ---------- Virtual environments ----------
+.venv/
+venv/
+env/
+ENV/
+
+# ---------- Test / coverage ----------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ---------- Type checkers / linters ----------
+.mypy_cache/
+.ruff_cache/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+
+# ---------- IDE / editor ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Project: RideSafe-Bio ----------
+# Obsidian vault config (workspace state is personal)
+.obsidian/
+
+# Large normative source PDFs (ISO/INSO/ASTM — licensed, do not distribute)
+*.pdf
+
+# Local scratch and generated artifacts
+*.log
+scratch/
+output/
