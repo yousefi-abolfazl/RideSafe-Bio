@@ -102,3 +102,42 @@
   | `tests/test_preprocessing.py` | ایجاد — ۱۴ آزمون واحد | بند ۷: V&V پیش از اتصال به داشبورد | همه پاس |
   | `docs/decisions.md` | ADR-7 ثبت شد | الزام تصمیم ۱ کارفرما (single-pass + SOS) | ✅ |
 - **Result / Validation:** ۱۴/۱۴ آزمون pytest پاس (شامل پایداری، پاسخ پله با بهره DC=1، میرایی 50Hz، عبور 0.5Hz، تشخیص zero_phase، خطاهای fs/Nyquist/نگاشت، تبدیل واحد، وارونگی، زمان مصنوعی و خطای «نه زمان نه fs»). بررسی خودکار: هیچ import ابزار UI در `src/` نیست (بند ۴). Smoke پایپ‌لاین واقعی standardize → filter موفق. دو باگ حین توسعه رفع شد: پاس‌دادن اشتباه "butter" به btype و عدم پشتیبانی نگاشت جزئی/خالی در فیلتر.
+
+
+### Task 2.2 — اسکریپت شبیه‌ساز داده شتاب `src/synthetic_gen.py` ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** ماژول تولید سیگنال شتاب سنتتیک با چهار شکل‌موج پایه (سینوسی، ذوزنقه‌ای، اسپایک گذرا، نویز گاوسی) — پارامترپذیر، قطعی (seed) و UI-free — به‌عنوان پیش‌نیاز تولید ۴ دیتاست مرزی تسک ۲.۳ و آزمون رگرسیون موتورهای فاز ۳/۵.
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — API توابع خالص، همگی با قرارداد یکسان `(fs, duration, seed) -> pd.DataFrame` خروجی `time,ax,ay,az`:
+
+    - `generate_sine_wave(fs, duration, amplitude, frequency, axis="az")`
+
+    - `generate_trapezoid_pulse(fs, duration, plateau_amplitude, ramp_rate_g_per_s, ...)`
+
+    - `generate_transient_spike(fs, duration, peak_amplitude, spike_width_s, ...)`
+
+    - `add_gaussian_noise(df, noise_std_g, seed)`
+
+    - `generate_composite_signal(fs, duration, components, seed)` — ترکیب منبع‌ها (برای سناریوهای ۲.۳)
+
+  - [ ] T2 — بازسازی پالس ذوزنقه‌ای از رئوس پاکت B.5 (خیز/پلاتو/افت) با `plateau_amplitude / ramp_rate` به‌عنوان پارامتر — نه آستانه هاردکد (بند ۶).
+
+  - [ ] T3 — `tests/test_synthetic_gen.py`: آزمون قطعی هر شکل‌موج — دامنه/فرکانس/نرخ بازسازی‌شده، طول سیگنال، قطعیت seed، رعایت پاکت ذوزنقه‌ای، UI-free بودن.
+
+  - [ ] T4 — ثبت Changes/Result در لاگ + commit `feat: ...` + پوش خودکار (بند ۱۰).
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+  | فایل | تغییر | دلیل | نتیجه |
+
+  |---|---|---|---|
+
+  | `src/synthetic_gen.py` | ایجاد | تسک ۲.۲ | — |
+
+  | `tests/test_synthetic_gen.py` | ایجاد | بند ۷: V&V | — |
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
