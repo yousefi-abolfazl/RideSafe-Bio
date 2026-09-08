@@ -88,6 +88,7 @@
 - شاخه اصلی: `main`؛ توسعه‌ی فازهای بزرگ در شاخه `feat/<phase>-<topic>` و merge پس از تأیید.
 - محیط مجازی `.venv/` به مخزن اضافه نمی‌شود؛ بازتولید: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
 - نسخه هدف پایتون: 3.10+ (توسعه روی 3.14).
+- هر commit فوراً به `origin/main` (GitHub: yousefi-abolfazl/RideSafe-Bio) پوش می‌شود؛ push دستی جداگانه لازم نیست.
 
 ## ۱۱. لایسنس
 
