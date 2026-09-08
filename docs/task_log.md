@@ -104,40 +104,30 @@
 - **Result / Validation:** ۱۴/۱۴ آزمون pytest پاس (شامل پایداری، پاسخ پله با بهره DC=1، میرایی 50Hz، عبور 0.5Hz، تشخیص zero_phase، خطاهای fs/Nyquist/نگاشت، تبدیل واحد، وارونگی، زمان مصنوعی و خطای «نه زمان نه fs»). بررسی خودکار: هیچ import ابزار UI در `src/` نیست (بند ۴). Smoke پایپ‌لاین واقعی standardize → filter موفق. دو باگ حین توسعه رفع شد: پاس‌دادن اشتباه "butter" به btype و عدم پشتیبانی نگاشت جزئی/خالی در فیلتر.
 
 
-### Task 2.2 — اسکریپت شبیه‌ساز داده شتاب `src/synthetic_gen.py` ⏳ (پلن در انتظار تأیید)
+### Task 2.2 — اسکریپت شبیه‌ساز داده شتاب `src/synthetic_gen.py` ✅
 
 
 
 - **Goal:** ماژول تولید سیگنال شتاب سنتتیک با چهار شکل‌موج پایه (سینوسی، ذوزنقه‌ای، اسپایک گذرا، نویز گاوسی) — پارامترپذیر، قطعی (seed) و UI-free — به‌عنوان پیش‌نیاز تولید ۴ دیتاست مرزی تسک ۲.۳ و آزمون رگرسیون موتورهای فاز ۳/۵.
 
-- **Checkpoints (پلن):**
+- **Checkpoints:**
 
-  - [ ] T1 — API توابع خالص، همگی با قرارداد یکسان `(fs, duration, seed) -> pd.DataFrame` خروجی `time,ax,ay,az`:
+  - [x] T1 — API پنج تابع خالص با قرارداد `(fs, duration, ..., seed) -> pd.DataFrame` (ستون‌های `time,ax,ay,az`).
 
-    - `generate_sine_wave(fs, duration, amplitude, frequency, axis="az")`
+  - [x] T2 — پالس ذوزنقه‌ای با `ramp_rate_g_per_s` پارامتر (بدون هاردکد 7/10/15).
 
-    - `generate_trapezoid_pulse(fs, duration, plateau_amplitude, ramp_rate_g_per_s, ...)`
+  - [x] T3 — `tests/test_synthetic_gen.py`: ۲۲ آزمون قطعی — همه پاس.
 
-    - `generate_transient_spike(fs, duration, peak_amplitude, spike_width_s, ...)`
+  - [x] T4 — Changes/Result ثبت شد + commit `feat: ...` + پوش خودکار.
 
-    - `add_gaussian_noise(df, noise_std_g, seed)`
-
-    - `generate_composite_signal(fs, duration, components, seed)` — ترکیب منبع‌ها (برای سناریوهای ۲.۳)
-
-  - [ ] T2 — بازسازی پالس ذوزنقه‌ای از رئوس پاکت B.5 (خیز/پلاتو/افت) با `plateau_amplitude / ramp_rate` به‌عنوان پارامتر — نه آستانه هاردکد (بند ۶).
-
-  - [ ] T3 — `tests/test_synthetic_gen.py`: آزمون قطعی هر شکل‌موج — دامنه/فرکانس/نرخ بازسازی‌شده، طول سیگنال، قطعیت seed، رعایت پاکت ذوزنقه‌ای، UI-free بودن.
-
-  - [ ] T4 — ثبت Changes/Result در لاگ + commit `feat: ...` + پوش خودکار (بند ۱۰).
-
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+- **Changes:**
 
   | فایل | تغییر | دلیل | نتیجه |
 
   |---|---|---|---|
 
-  | `src/synthetic_gen.py` | ایجاد | تسک ۲.۲ | — |
+  | `src/synthetic_gen.py` | ایجاد — ۵ تابع: `generate_sine_wave`، `generate_trapezoid_pulse`، `generate_transient_spike`، `add_gaussian_noise`، `generate_composite_signal` | تسک ۲.۲ + سه تصمیم تأییدشده کارفرما | ۶.۴KB |
 
-  | `tests/test_synthetic_gen.py` | ایجاد | بند ۷: V&V | — |
+  | `tests/test_synthetic_gen.py` | ایجاد — ۲۲ آزمون واحد | بند ۷: V&V | همه پاس |
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+- **Result / Validation:** ۲۲/۲۲ آزمون پاس (۳۶/۳۶ کل پروژه): بازسازی دامنه/فرکانس/نرخ شیب، شکل خیز-پلاتو-افت، قطعیت seed، ابرپوشش خطی بدون clamp (دامنه ترکیبی > ۳g از اجزای ۳g اثبات شد)، آمار نویز (μ≈0، σ≈std)، محدوده‌های خطای پارامتر. بررسی خودکار: UI-free (بند ۴). Smoke دستورالعمل ۴ دیتاست ۲.۳ موفق.
