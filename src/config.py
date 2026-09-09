@@ -21,3 +21,23 @@ MS2_TO_G = 9.80665
 # Canonical internal signal layout (post-ingestion column names).
 TIME_COLUMN = "time"
 ACCELERATION_COLUMNS = ("ax", "ay", "az")
+
+
+# ISO 17929 section B.5: maximum recommended rise/fall rates of the trapezoid
+
+# impulse envelope, per device extremity class.
+
+JERK_LIMITS = {
+    "family": 7.0,
+    "general": 10.0,
+    "extreme": 15.0,
+}
+
+
+# ISO 17929 section B.5: minimum outer-edge rate of the envelope. Geometric
+
+# property of the packet only — gentler than 1 g/s is NOT a safety violation.
+
+JERK_MIN_RATE = 1.0
+
+JERK_CLAUSE = "ISO 17929 §B.5"

@@ -188,42 +188,32 @@
 
 
 
-### Task 3.1 — ماژول Jerk (نرخ خیز/افت شتاب) ⏳ (پلن در انتظار تأیید)
+### Task 3.1 — ماژول Jerk (نرخ خیز/افت شتاب) ✅
 
 
 
-- **Goal:** پیاده‌سازی `calculate_jerk_rate()` در `src/iso17929_engine.py` — مشتق زمانی da/dt پس از فیلتر 5 Hz (الزام بند ۷ قرارداد) — و ارزیابی آن در برابر نرخ‌های مجاز پیکربندی‌پذیر 7/10/15 g/s طبق B.5، با ردیابی‌پذیری کامل به بازه زمانی و بند استاندارد.
+- **Goal:** پیاده‌سازی `calculate_jerk_rate()` و `evaluate_jerk_compliance()` در `src/iso17929_engine.py` — مشتق زمانی da/dt پس از فیلتر 5 Hz و ارزیابی در برابر نرخ‌های 7/10/15 g/s پیکربندی‌پذیر (B.5).
 
+- **Checkpoints:**
 
+  - [x] T1 — `src/config.py`: `JERK_LIMITS` (family=7، general=10، extreme=15) + `JERK_MIN_RATE=1.0` + `JERK_CLAUSE`.
 
-- **Checkpoints (پلن):**
+  - [x] T2 — `src/iso17929_engine.py`: `calculate_jerk_rate` (np.gradient مرکزی، صفر-فاز) + `evaluate_jerk_compliance` (فقط `|jerk| > limit` طبق تذکر کارفرما؛ `JERK_MIN_RATE` صرفاً هندسی، نقض نیست).
 
-  - [ ] T1 — `src/config.py`: افزودن `JERK_LIMITS = {"family": 7.0, "general": 10.0, "extreme": 15.0}` (B.5) + `JERK_MIN_RATE = 1.0` (ضلع بیرونی پاکت).
+  - [x] T3 — `tests/test_iso17929_engine.py`: ۱۱ آزمون — همه پاس.
 
-  - [ ] T2 — `src/iso17929_engine.py`:
+  - [x] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش خودکار.
 
-    - `calculate_jerk_rate(df, column_mapping, sampling_rate) -> pd.DataFrame` — np.gradient روی ستون‌های فیلترشده (مرکز‌زدایی مرتبه دوم، بدون فیلتر مجدد).
-
-    - `evaluate_jerk_compliance(jerk_df, jerk_limits, axis="az") -> dict` — برچسب‌گذاری بازه‌های ناقض با شناسه تکانه، بند B.5، سطح حد (family/general/extreme) و بولی انطباق.
-
-    - خروجی صرفاً داده‌ای (DataFrame/dict) — بدون UI (بند ۴).
-
-  - [ ] T3 — `tests/test_iso17929_engine.py`: صحت مشتق روی سینوس/ذوزنقه با پاسخ تحلیلی، تیک‌خوردن نقض فقط روی data_jerk_violation (18 g/s)، پاس safe_family، محدوده‌های config، ردیابی‌پذیری خروجی.
-
-  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش خودکار.
-
-
-
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+- **Changes:**
 
   | فایل | تغییر | دلیل | نتیجه |
 
   |---|---|---|---|
 
-  | `src/config.py` | افزودن JERK_LIMITS | بند ۶: بدون هاردکد | — |
+  | `src/config.py` | افزودن JERK_LIMITS / JERK_MIN_RATE / JERK_CLAUSE | بند ۶ | — |
 
-  | `src/iso17929_engine.py` | ایجاد | تسک ۳.۱ | — |
+  | `src/iso17929_engine.py` | ایجاد — ۲ تابع + `_contiguous_intervals` | تسک ۳.۱ | ۳.۶KB |
 
-  | `tests/test_iso17929_engine.py` | ایجاد | بند ۷ | — |
+  | `tests/test_iso17929_engine.py` | ایجاد — ۱۱ آزمون | بند ۷ | همه پاس |
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+- **Result / Validation:** ۱۱/۱۱ پاس (۶۵/۶۵ کل پروژه): مشتق سینوس با خطای نسبی < 1% در برابر جواب تحلیلی A·ω·cos؛ پلاتو ذوزنقه jerk≈0؛ دیتاست `data_jerk_violation` (18 g/s) با هر سه کلاس FAIL و ≥2 بازه ناقض با `clause="ISO 17929 §B.5"`؛ `data_safe_family` با کلاس خانوادگی PASS؛ شروع ملایم 0.3 g/s (زیر JERK_MIN_RATE) ناقض ثبت نشد — تذکر کارفرما اعمال شد. کشف مهم: فیلتر تک‌گذره کازوال rampe خطی را به S-منحنی تبدیل می‌کند و پیک لحظه‌ای jerk تا ~1.1× نرخ اسمی می‌رسد — در تست با باند S-curve پوشش داده شد؛ ارزیابی B.5 بر مبنای شیب پاکت/میانگین بازه است نه پیک لحظه‌ای. UI-free (بند ۴).
