@@ -41,3 +41,26 @@ JERK_LIMITS = {
 JERK_MIN_RATE = 1.0
 
 JERK_CLAUSE = "ISO 17929 §B.5"
+
+
+# ISO 17929 section B.4 / B.14: 0.2 g onset of dynamic perception and the
+
+# personal-restraint floor; used as the impulse detection threshold (A4).
+
+IMPULSE_MIN_AMPLITUDE_G = 0.2
+
+
+
+# ISO 17929 section B.15: 5 g impulses may repeat only if the amplitude
+
+# falls to <= 2 g between them.
+
+RECOVERY_THRESHOLD_G = 2.0
+
+# ISO 17929 section B.15: example cumulative tolerance area of the Z-axis
+
+# tolerance line (Cobra roller-coaster profile) — reconstructed value (A7).
+
+DOSE_TOLERANCE_GS = 11129.0
+
+DOSE_CLAUSE = "ISO 17929 §B.15"

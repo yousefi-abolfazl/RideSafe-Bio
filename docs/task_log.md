@@ -219,42 +219,36 @@
 - **Result / Validation:** ۱۱/۱۱ پاس (۶۵/۶۵ کل پروژه): مشتق سینوس با خطای نسبی < 1% در برابر جواب تحلیلی A·ω·cos؛ پلاتو ذوزنقه jerk≈0؛ دیتاست `data_jerk_violation` (18 g/s) با هر سه کلاس FAIL و ≥2 بازه ناقض با `clause="ISO 17929 §B.5"`؛ `data_safe_family` با کلاس خانوادگی PASS؛ شروع ملایم 0.3 g/s (زیر JERK_MIN_RATE) ناقض ثبت نشد — تذکر کارفرما اعمال شد. کشف مهم: فیلتر تک‌گذره کازوال rampe خطی را به S-منحنی تبدیل می‌کند و پیک لحظه‌ای jerk تا ~1.1× نرخ اسمی می‌رسد — در تست با باند S-curve پوشش داده شد؛ ارزیابی B.5 بر مبنای شیب پاکت/میانگین بازه است نه پیک لحظه‌ای. UI-free (بند ۴).
 
 
-### Task 3.2 — ماژول پالس و دوز شتاب (B.15) ⏳ (پلن در انتظار تأیید)
+
+
+### Task 3.2 — ماژول پالس و دوز شتاب (B.15) ✅
 
 
 
-- **Goal:** پیاده‌سازی دو قابلیت در `src/iso17929_engine.py`: (۱) آشکارساز تکانه با تفکیک خیز/پلاتو/افت و مشخصات هندسی هر پالس؛ (۲) محاسبه دوز تجمعی (مساحت زیر منحنی) و مقایسه با ظرفیت خط تحمل طبق B.15 — با ردیابی‌پذیری بند به تکانه.
+- **Goal:** آشکارساز تکانه با تفکیک خیز/پلاتو/افت (`detect_impulses` + dataclass `Impulse`) و ارزیابی دوز تجمعی (`compute_cumulative_dose`) طبق B.15 با ردیابی‌پذیری.
 
+- **Checkpoints:**
 
+  - [x] T1 — `src/config.py`: `IMPULSE_MIN_AMPLITUDE_G=0.2`، `RECOVERY_THRESHOLD_G=2.0`، `DOSE_TOLERANCE_GS=11129.0` (بازساخت‌شده A7)، `DOSE_CLAUSE`.
 
-- **Checkpoints (پلن):**
+  - [x] T2 — `src/iso17929_engine.py`: dataclass `Impulse` + `detect_impulses` (گیت 0.2g + حداقل مدت 20ms + شکافتن پالس‌های زنجیره‌ای در دره‌های |a|) + `compute_cumulative_dose` (مساحت در برابر ظرفیت قابل override + قاعده ریکاوری تکانه‌های ≥5g).
 
-  - [ ] T1 — `src/config.py`: `IMPULSE_MIN_AMPLITUDE_G = 0.2` (آستانه شروع تکانه، پیکربندی‌پذیر بر پایه A4)، `RECOVERY_THRESHOLD_G = 2.0` (B.15)، `DOSE_TOLERANCE_GT = 11129.0` (ظرفیت مثال Z در B.15 — برچسب بازسازی‌شده).
+  - [x] T3 — ۱۱ آزمون جدید — همه پاس.
 
-  - [ ] T2 — `src/iso17929_engine.py`:
+  - [x] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش خودکار.
 
-    - `detect_impulses(df, axis="az", amplitude_threshold=IMPULSE_MIN_AMPLITUDE_G) -> list[Impulse]` — dataclass با فیلدهای: start/end_s، peak_g، mean_rise_rate، mean_fall_rate، area_gt (مثبت/منفی جدا).
-
-    - `compute_cumulative_dose(impulses, tolerance_gt=DOSE_TOLERANCE_GT) -> dict` — مجموع مساحت تکانه‌ها در برابر ظرفیت B.15 + کنترل قاعده تکرار (افت به ≤ 2g بین تکانه‌های بزرگ).
-
-    - خروجی صرفاً dataclass/dict — بدون UI (بند ۴).
-
-  - [ ] T3 — `tests/test_iso17929_engine.py` (افزودن): صحت مساحت مثلث/ذوزنقه با جواب تحلیلی، تعداد تکانه‌ها روی ۴ دیتاست مرزی، تشخیص عدم ریکاوری دوز در data_cumulative_dose_violation، پاس کامل safe_family، ردیابی‌پذیری.
-
-  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش خودکار.
-
-
-
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+- **Changes:**
 
   | فایل | تغییر | دلیل | نتیجه |
 
   |---|---|---|---|
 
-  | `src/config.py` | افزودن آستانه‌های تکانه/ریکاوری/دوز | بند ۶ | — |
+  | `src/config.py` | افزودن IMPULSE/RECOVERY/DOSE + REPEATABLE floor | بند ۶ | — |
 
-  | `src/iso17929_engine.py` | افزودن ماژول پالس و دوز | تسک ۳.۲ | — |
+  | `src/iso17929_engine.py` | افزودن ماژول تکانه و دوز | تسک ۳.۲ | +~۱۹۰ خط |
 
-  | `tests/test_iso17929_engine.py` | گسترش آزمون‌ها | بند ۷ | — |
+  | `tests/test_iso17929_engine.py` | گسترش به ۲۲ آزمون | بند ۷ | همه پاس |
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `data/data_cumulative_dose_violation.csv` | بازتولید — زنجیره 0.05s قبل از عبور 2g | نقض واقعی B.15 (min=2.35g) | آزمون‌های datasets همچنان پاس |
+
+- **Result / Validation:** ۲۲/۲۲ پاس موتور (۷۶/۷۶ کل پروژه): مساحت ذوزنقه با جواب تحلیلی خطای <0.02 g·s؛ شمارش تکانه: safe=2، jerk=1، dose=3؛ نقض ریکاوری روی dose: ۲ بازه با min=2.35g>2.0 و `clause="ISO 17929 §B.15"`؛ safe_family: dose و ریکاوری کامل؛ override ظرفیت (0.01) → dose_compliant=False؛ قطعیت و impulse_id ترتیبی با `clause="ISO 17929 §B.4"`. اصلاحات طراحی: (۱) گیت نویز 20ms — نوسان 4ms حذف شد؛ (۲) پالس‌های زنجیره‌ای B.15 هرگز زیر آستانه نمی‌روند و در یک گیت ادغام می‌شدند — با شکافتن در دره‌های |a| (find_peaks) سه تکانه مجزا شناسایی شد. UI-free (بند ۴).

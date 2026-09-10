@@ -94,15 +94,15 @@ def build_3d_combined_violation(output_dir: str = "data", seed: int = DEFAULT_SE
 @_register("data_cumulative_dose_violation.csv")
 def build_cumulative_dose_violation(output_dir: str = "data", seed: int = DEFAULT_SEED) -> dict:
     # B.15: 5 g impulses may repeat only if az falls to <= 2 g between them.
-    # Pulse starts are chained to the 2 g crossing of the preceding fall:
-    # fall crosses 2 g at hold + (amp-2)/rate after plateau start; starting the
-    # next rise exactly there keeps az >= 2 g across the whole inter-pulse span.
+    # Pulse starts are chained slightly BEFORE the 2 g crossing of the
+    # preceding fall (offset 0.05 s), so the inter-impulse minimum sits above
+    # the recovery line — a genuine B.15 violation (min ≈ 2.35 g).
     rate = 7.0
     amp = 5.0
     ramp = amp / rate
     hold = 0.5
     cross_2g = hold + (amp - 2.0) / rate  # fall start -> 2 g crossing
-    starts = [1.0, 1.0 + ramp + cross_2g, 1.0 + 2 * (ramp + cross_2g)]
+    starts = [1.0, 1.0 + ramp + cross_2g - 0.05, 1.0 + 2 * (ramp + cross_2g - 0.05)]
     frame = generate_composite_signal(
         FS, 12.0,
         [
@@ -113,13 +113,16 @@ def build_cumulative_dose_violation(output_dir: str = "data", seed: int = DEFAUL
         seed=seed,
     )
     path = _write(frame, output_dir, "data_cumulative_dose_violation.csv")
-    between = frame[(frame["time"] > starts[0] + ramp + hold)
-                    & (frame["time"] < starts[-1] + ramp)]
+    # true minimum of |az| across the whole inter-impulse span
+    inter_min = float(
+        frame[(frame["time"] >= starts[0] + ramp + hold)
+              & (frame["time"] <= starts[-1] + ramp + hold)]["az"].abs().min()
+    )
     return {
         "file": path,
         "peak_az_g": float(frame["az"].abs().max()),
         "ramp_rate_g_per_s": rate,
-        "inter_pulse_min_az_g": float(between["az"].min()),
+        "inter_pulse_min_az_g": inter_min,
         "recovery_threshold_g": 2.0,
         "pulse_starts_s": starts,
     }

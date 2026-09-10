@@ -141,3 +141,140 @@ def test_invalid_device_class_raises():
 def test_missing_jerk_column_raises():
     with pytest.raises(ValueError, match="not found"):
         evaluate_jerk_compliance(pd.DataFrame({"time": np.arange(10)}), axis="az")
+
+
+# --- Task 3.2: impulse detection and cumulative dose (B.4 / B.15) ---------------
+
+
+
+from src.config import (  # noqa: E402
+
+    DOSE_TOLERANCE_GS,
+
+    IMPULSE_MIN_AMPLITUDE_G,
+
+    RECOVERY_THRESHOLD_G,
+)
+from src.iso17929_engine import Impulse, detect_impulses, compute_cumulative_dose  # noqa: E402
+
+
+
+
+
+def _az_only(frame: pd.DataFrame) -> pd.DataFrame:
+
+    return frame[[TIME, "az"]]
+
+
+
+
+
+def test_trapezoid_area_matches_analytic():
+    rate, amp, hold = 5.0, 2.0, 1.0
+    from src.synthetic_gen import generate_trapezoid_pulse
+    raw = generate_trapezoid_pulse(FS, 6.0, plateau_amplitude=amp,
+                                   ramp_rate_g_per_s=rate, start_time=1.0,
+                                   hold_time=hold, axis="az")
+    impulses = detect_impulses(raw, axis="az")
+    assert len(impulses) == 1
+    imp = impulses[0]
+    ramp = amp / rate
+    analytic_area = amp * hold + amp * ramp  # rectangle + two half-triangles
+    assert abs(imp.area_g_s - analytic_area) < 0.02
+    assert abs(imp.peak_g - amp) < 1e-9
+    assert abs(imp.mean_rise_rate_g_per_s - rate) < 0.1
+    assert abs(imp.mean_fall_rate_g_per_s - rate) < 0.1
+    assert imp.sign == 1
+
+
+def test_detects_two_pulses_in_safe_family():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_safe_family.csv")
+    impulses = detect_impulses(frame, axis="az")
+    assert len(impulses) == 2
+    assert all(abs(i.peak_g - 1.5) < 0.1 for i in impulses)
+    assert all(i.mean_rise_rate_g_per_s < 5.0 for i in impulses)
+
+
+def test_negative_pulse_sign():
+    from src.synthetic_gen import generate_trapezoid_pulse
+    raw = generate_trapezoid_pulse(FS, 4.0, plateau_amplitude=1.0,
+                                   ramp_rate_g_per_s=2.0, start_time=0.5,
+                                   hold_time=0.8, axis="ax")
+    raw["ax"] = -raw["ax"]
+    impulses = detect_impulses(raw, axis="ax")
+    assert len(impulses) == 1 and impulses[0].sign == -1
+
+
+def test_subthreshold_stays_silent():
+    t = np.arange(int(2 * FS)) / FS
+    frame = pd.DataFrame({"time": t, "ax": 0.1 * np.ones_like(t),
+                          "ay": np.zeros_like(t), "az": np.zeros_like(t)})
+    assert detect_impulses(frame, axis="ax") == []
+
+
+def test_configurable_threshold():
+    t = np.arange(int(2 * FS)) / FS
+    frame = pd.DataFrame({"time": t, "az": 0.3 * np.ones_like(t)})
+    # 0.3 g is above the 0.2 g default: detected. Raise the gate: silent.
+    assert len(detect_impulses(frame, axis="az", amplitude_threshold=0.2)) == 1
+    assert detect_impulses(frame, axis="az", amplitude_threshold=0.5) == []
+
+
+def test_impulse_defaults_use_config():
+    assert IMPULSE_MIN_AMPLITUDE_G == 0.2
+    assert RECOVERY_THRESHOLD_G == 2.0
+    assert DOSE_TOLERANCE_GS == 11129.0
+
+
+def test_dose_compliant_on_safe_family():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_safe_family.csv")
+    impulses = detect_impulses(frame, axis="az")
+    dose = compute_cumulative_dose(impulses, recovery_signal=frame)
+    assert dose["dose_compliant"] is True
+    assert dose["recovery_compliant"] is True
+    assert dose["recovery_violations"] == []
+    assert dose["impulse_count"] == 2
+
+
+def test_dose_recovery_violation_on_cumulative_dataset():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_cumulative_dose_violation.csv")
+    impulses = detect_impulses(frame, axis="az")
+    assert len(impulses) == 3
+    assert all(i.peak_g >= 5.0 for i in impulses)
+    dose = compute_cumulative_dose(impulses, recovery_signal=frame)
+    assert dose["dose_compliant"] is True  # area still within tolerance
+    assert dose["recovery_compliant"] is False
+    assert len(dose["recovery_violations"]) == 2
+    for violation in dose["recovery_violations"]:
+        assert violation["min_g"] > RECOVERY_THRESHOLD_G
+        assert violation["clause"] == "ISO 17929 §B.15"
+
+
+def test_dose_tolerance_override():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_safe_family.csv")
+    impulses = detect_impulses(frame, axis="az")
+    tiny = compute_cumulative_dose(impulses, tolerance_g_s=0.01)
+    assert tiny["dose_compliant"] is False
+    assert tiny["tolerance_g_s"] == 0.01
+
+
+def test_invalid_tolerance_and_axis():
+    with pytest.raises(ValueError, match="tolerance_g_s"):
+        compute_cumulative_dose([], tolerance_g_s=0.0)
+    with pytest.raises(ValueError, match="not found"):
+        detect_impulses(pd.DataFrame({"time": [0, 1]}), axis="az")
+    with pytest.raises(ValueError, match="amplitude_threshold"):
+        detect_impulses(pd.DataFrame({"time": np.arange(10), "az": np.ones(10)}),
+                        axis="az", amplitude_threshold=-1.0)
+
+
+def test_impulse_ids_are_sequential_and_traceable():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_cumulative_dose_violation.csv")
+    impulses = detect_impulses(frame, axis="az")
+    assert [i.impulse_id for i in impulses] == [1, 2, 3]
+    assert all(i.clause == "ISO 17929 §B.4" for i in impulses)
