@@ -217,3 +217,44 @@
   | `tests/test_iso17929_engine.py` | ایجاد — ۱۱ آزمون | بند ۷ | همه پاس |
 
 - **Result / Validation:** ۱۱/۱۱ پاس (۶۵/۶۵ کل پروژه): مشتق سینوس با خطای نسبی < 1% در برابر جواب تحلیلی A·ω·cos؛ پلاتو ذوزنقه jerk≈0؛ دیتاست `data_jerk_violation` (18 g/s) با هر سه کلاس FAIL و ≥2 بازه ناقض با `clause="ISO 17929 §B.5"`؛ `data_safe_family` با کلاس خانوادگی PASS؛ شروع ملایم 0.3 g/s (زیر JERK_MIN_RATE) ناقض ثبت نشد — تذکر کارفرما اعمال شد. کشف مهم: فیلتر تک‌گذره کازوال rampe خطی را به S-منحنی تبدیل می‌کند و پیک لحظه‌ای jerk تا ~1.1× نرخ اسمی می‌رسد — در تست با باند S-curve پوشش داده شد؛ ارزیابی B.5 بر مبنای شیب پاکت/میانگین بازه است نه پیک لحظه‌ای. UI-free (بند ۴).
+
+
+### Task 3.2 — ماژول پالس و دوز شتاب (B.15) ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** پیاده‌سازی دو قابلیت در `src/iso17929_engine.py`: (۱) آشکارساز تکانه با تفکیک خیز/پلاتو/افت و مشخصات هندسی هر پالس؛ (۲) محاسبه دوز تجمعی (مساحت زیر منحنی) و مقایسه با ظرفیت خط تحمل طبق B.15 — با ردیابی‌پذیری بند به تکانه.
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — `src/config.py`: `IMPULSE_MIN_AMPLITUDE_G = 0.2` (آستانه شروع تکانه، پیکربندی‌پذیر بر پایه A4)، `RECOVERY_THRESHOLD_G = 2.0` (B.15)، `DOSE_TOLERANCE_GT = 11129.0` (ظرفیت مثال Z در B.15 — برچسب بازسازی‌شده).
+
+  - [ ] T2 — `src/iso17929_engine.py`:
+
+    - `detect_impulses(df, axis="az", amplitude_threshold=IMPULSE_MIN_AMPLITUDE_G) -> list[Impulse]` — dataclass با فیلدهای: start/end_s، peak_g، mean_rise_rate، mean_fall_rate، area_gt (مثبت/منفی جدا).
+
+    - `compute_cumulative_dose(impulses, tolerance_gt=DOSE_TOLERANCE_GT) -> dict` — مجموع مساحت تکانه‌ها در برابر ظرفیت B.15 + کنترل قاعده تکرار (افت به ≤ 2g بین تکانه‌های بزرگ).
+
+    - خروجی صرفاً dataclass/dict — بدون UI (بند ۴).
+
+  - [ ] T3 — `tests/test_iso17929_engine.py` (افزودن): صحت مساحت مثلث/ذوزنقه با جواب تحلیلی، تعداد تکانه‌ها روی ۴ دیتاست مرزی، تشخیص عدم ریکاوری دوز در data_cumulative_dose_violation، پاس کامل safe_family، ردیابی‌پذیری.
+
+  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش خودکار.
+
+
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+  | فایل | تغییر | دلیل | نتیجه |
+
+  |---|---|---|---|
+
+  | `src/config.py` | افزودن آستانه‌های تکانه/ریکاوری/دوز | بند ۶ | — |
+
+  | `src/iso17929_engine.py` | افزودن ماژول پالس و دوز | تسک ۳.۲ | — |
+
+  | `tests/test_iso17929_engine.py` | گسترش آزمون‌ها | بند ۷ | — |
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
