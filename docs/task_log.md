@@ -287,3 +287,32 @@
   | `tests/test_datasets.py` | به‌روزرسانی ادعاهای ۳بعدی | همگام با داده جدید | پاس |
 
 - **Result / Validation:** ۸۴/۸۴ کل پروژه (۳۰ تست موتور). دیتاست جدید: سه بازه ناقض sustained (≥0.2s) با peak_ratio≈1.19، هر سه جفت XY/XZ/YZ ≤1 (0.78/0.88/0.71) — نقض انحصاری سه‌بعدی تأیید شد. safe_family کاملاً پاس. استثنای B.16: اسپایک 6g/0.1s با r3=1.078 → صرفاً excluded_transients، compliant=True. اصلاحات حین TDD: (۱) lookup_adm محور نامعتبر را بی‌سروصدا به y نگاشت می‌کرد → اعتبارسنجی صریح؛ (۲) داده قدیمی با adm per-sample اصلاً نقض نمی‌شد (z-term=0.1) → هندسه دیتاست با جست‌وجوی پارامتری بازطراحی شد؛ (۳) قطبیت منفی az پاکت -z (سقف 2g) را فعال می‌کرد → بایاس مثبت +z الزامی شد. UI-free (بند ۴).
+
+
+### Task 3.4 — موتور رده‌بندی ریسک بیومکانیکی RB-1..RB-4 (Table B.1) ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** دسته‌بندی خودکار دستگاه در سطوح RB-1 (اکستریم) تا RB-4 (کودک) بر اساس Table B.1 — با ورودی حداکثر دامنه‌های شتاب هر محور (از خروجی detect_impulses) و متادیتای دستگاه (سرعت/ارتفاع اختیاری) — به‌همراه استخراج الزامات مهاربند متناظر (V11) و نماد extremity.
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — `src/config.py`: `RB_ACCELERATION_TABLE` (سطرهای ax/ay/+az/−az با بازه‌های RB-1..RB-4 — B.1)، `RB_SPEED_HEIGHT_TABLE` (سرعت V و ارتفاع‌ها — اختیاری)، `RESTRAINT_REQUIREMENTS` (V11: قواعد مهار بر حسب دامنه/مدت با ارجاع بند)، `RB_EXTREMITY_MAP` (RB-1=high … RB-4=negligible).
+
+  - [ ] T2 — `src/iso17929_engine.py`:
+
+    - `classify_risk_level(peaks: dict, device_meta: dict | None = None) -> dict` — منطق بدترین-حالت (most severe): هر سطر Table B.1 جدا رده‌گذاری و رده نهایی = ماکزیمم سطرها؛ در صورت ارائه سرعت/ارتفاع، سطرهای آن‌ها هم لحاظ می‌شوند.
+
+    - `extract_restraint_requirements(peaks, durations) -> list[dict]` — قواعد V11 (مثلاً +az≥4g ⇒ تکیه‌گاه سر + میله کمر + مهار شانه) با ارجاع بند و وضعیت برقراری.
+
+    - خروجی dataclass `RiskAssessment` (level, per_axis_levels, extremity, restraints, clause) — بدون UI.
+
+  - [ ] T3 — آزمون: مرزهای بازه‌ها (3g/5g/2g)، بدترین-حالت غالب، دیتاست‌های مرزی (dose=5g → RB-1)، مهاربند +az≥4g، قطعیت و خطاهای ورودی.
+
+  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
