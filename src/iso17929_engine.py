@@ -22,7 +22,12 @@ from src.config import (
     IMPULSE_MIN_AMPLITUDE_G,
     JERK_CLAUSE,
     JERK_LIMITS,
+    RB_ACCELERATION_TABLE,
+    RB_CLAUSE,
+    RB_EXTREMITY_MAP,
+    RB_SPEED_TABLE,
     RECOVERY_THRESHOLD_G,
+    RESTRAINT_REQUIREMENTS,
     TIME_COLUMN,
 )
 
@@ -466,3 +471,176 @@ def _ratio_intervals(time: np.ndarray, ratios: np.ndarray) -> list[dict]:
             }
         )
     return intervals
+
+
+
+
+# --- Task 3.4: biomechanical risk classification (Table B.1) ---------------------
+
+
+
+
+
+@dataclass
+
+class RiskAssessment:
+
+    """RB risk classification result (ISO 17929 Table B.1)."""
+
+
+
+    acceleration_rb: str
+
+    overall_rb: str
+
+    extremity: str
+
+    per_axis_levels: dict[str, str | None]
+
+    metadata_status: str
+
+    test_required: bool  # Note 3: RB-1/RB-2 require physical testing
+
+    restraints: list[dict]
+
+    clause: str = RB_CLAUSE
+
+
+
+
+
+_RB_ORDER = ["RB-4", "RB-3", "RB-2", "RB-1"]
+
+_NO_METADATA_MESSAGE = (
+
+    "Speed/Height not provided; evaluated based on biomechanical acceleration only"
+
+)
+
+
+
+
+
+def _boundaries_level(
+    value: float, bounds: dict[str, tuple[float, float]], axis_key: str = ""
+) -> str:
+    """Map a value onto [min, max) bands; upper edge belongs to higher level.
+
+    -az has no numeric RB-4 band: RB-4 applies only when no negative -az
+    excursion exists (peak == 0).
+    """
+    if axis_key == "-az" and value <= 0.0:
+        return "RB-4"
+    for rb in _RB_ORDER:
+        if rb not in bounds:
+            continue
+        low, high = bounds[rb]
+        if low <= value < high:
+            return rb
+    return "RB-1"  # value above every finite upper bound
+
+
+
+
+def classify_risk_level(
+
+    peaks: dict[str, float],
+
+    device_meta: dict | None = None,
+
+) -> RiskAssessment:
+
+    """Classify the device into RB-1..RB-4 from peak accelerations (B.1).
+
+
+
+    Worst-case reading: the final level is the most severe across all rows.
+    device_meta may carry speed_mps / heights to add the kinematic rows.
+    """
+    per_axis: dict[str, str | None] = {}
+    levels: list[str] = []
+
+    for key, bounds in RB_ACCELERATION_TABLE.items():
+        if key.startswith(("+", "-")):
+            base_axis = key[1:]
+        else:
+            base_axis = key
+        if key in peaks:
+            level = _boundaries_level(float(peaks[key]), bounds)
+        elif base_axis in peaks:
+            level = _boundaries_level(float(peaks[base_axis]), bounds)
+        else:
+            level = None
+        per_axis[key] = level
+        if level is not None:
+            levels.append(level)
+
+    if not levels:
+        raise ValueError("peaks must contain at least one classified axis value")
+
+    acceleration_rb = max(levels, key=_RB_ORDER.index)
+    overall_rb = acceleration_rb
+    meta_used = False
+    if device_meta:
+        if "speed_mps" in device_meta and device_meta["speed_mps"] is not None:
+            levels.append(
+                _boundaries_level(float(device_meta["speed_mps"]), RB_SPEED_TABLE)
+            )
+            meta_used = True
+        overall_rb = max(levels, key=_RB_ORDER.index)
+
+    metadata_status = (
+        "Speed/Height metadata applied to classification"
+        if meta_used else _NO_METADATA_MESSAGE
+    )
+    return RiskAssessment(
+        acceleration_rb=acceleration_rb,
+        overall_rb=overall_rb,
+        extremity=RB_EXTREMITY_MAP[overall_rb],
+        per_axis_levels=per_axis,
+        metadata_status=metadata_status,
+        test_required=overall_rb in ("RB-1", "RB-2"),
+        restraints=[],
+    )
+
+
+def extract_restraint_requirements(
+    peaks: dict[str, float],
+    durations: dict[str, float] | None = None,
+) -> list[dict]:
+    """Evaluate V11 restraint rules against peak amplitudes (B.11-B.14)."""
+    durations = durations or {}
+    results: list[dict] = []
+    for rule in RESTRAINT_REQUIREMENTS:
+        axis_key = rule["axis"]
+        threshold = float(rule["threshold_g"])
+        strict = rule.get("strict", False)
+        peak = float(peaks.get(axis_key, 0.0))
+
+        met = peak > threshold if strict else peak >= threshold
+        duration_note = None
+        if "duration_s" in rule:
+            alt_threshold = float(rule.get("alt_threshold_g", threshold))
+            alt_duration = float(rule.get("alt_duration_s", float("inf")))
+            exposure = float(durations.get(axis_key, 0.0))
+            duration_met = (
+                (peak > threshold and exposure > float(rule["duration_s"]))
+                or (peak > alt_threshold and exposure > alt_duration)
+            )
+            if peak >= threshold and exposure <= 0.0:
+                met = False
+                duration_note = "duration unknown; cannot evaluate"
+            else:
+                met = duration_met
+
+        results.append(
+            {
+                "condition": rule["condition"],
+                "requirement": rule["requirement"],
+                "met": bool(met),
+                "peak_g": peak,
+                "clause": rule["clause"],
+                **({"note": duration_note} if duration_note else {}),
+            }
+        )
+    return results

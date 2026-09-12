@@ -289,30 +289,32 @@
 - **Result / Validation:** ۸۴/۸۴ کل پروژه (۳۰ تست موتور). دیتاست جدید: سه بازه ناقض sustained (≥0.2s) با peak_ratio≈1.19، هر سه جفت XY/XZ/YZ ≤1 (0.78/0.88/0.71) — نقض انحصاری سه‌بعدی تأیید شد. safe_family کاملاً پاس. استثنای B.16: اسپایک 6g/0.1s با r3=1.078 → صرفاً excluded_transients، compliant=True. اصلاحات حین TDD: (۱) lookup_adm محور نامعتبر را بی‌سروصدا به y نگاشت می‌کرد → اعتبارسنجی صریح؛ (۲) داده قدیمی با adm per-sample اصلاً نقض نمی‌شد (z-term=0.1) → هندسه دیتاست با جست‌وجوی پارامتری بازطراحی شد؛ (۳) قطبیت منفی az پاکت -z (سقف 2g) را فعال می‌کرد → بایاس مثبت +z الزامی شد. UI-free (بند ۴).
 
 
-### Task 3.4 — موتور رده‌بندی ریسک بیومکانیکی RB-1..RB-4 (Table B.1) ⏳ (پلن در انتظار تأیید)
+### Task 3.4 — موتور رده‌بندی ریسک بیومکانیکی RB-1..RB-4 (Table B.1) ✅
 
 
 
-- **Goal:** دسته‌بندی خودکار دستگاه در سطوح RB-1 (اکستریم) تا RB-4 (کودک) بر اساس Table B.1 — با ورودی حداکثر دامنه‌های شتاب هر محور (از خروجی detect_impulses) و متادیتای دستگاه (سرعت/ارتفاع اختیاری) — به‌همراه استخراج الزامات مهاربند متناظر (V11) و نماد extremity.
+- **Goal:** دسته‌بندی خودکار دستگاه در RB-1..RB-4 از Table B.1 بر پایه حداکثر دامنه‌های شتاب (خروجی detect_impulses) + متادیتای اختیاری سرعت — با استخراج الزامات مهاربند (V11) و نماد extremity؛ تفکیک acceleration_rb از overall_rb (تصمیم کارفرما).
 
+- **Checkpoints:**
 
+  - [x] T1 — `src/config.py`: `RB_ACCELERATION_TABLE` (بازه‌های [min,max) با مرز متعلق به رده بالاتر — تصمیم محافظه‌کارانه کارفرما؛ -az بدون باند عددی RB-4) + `RB_SPEED_TABLE` + `RB_EXTREMITY_MAP` + `RESTRAINT_REQUIREMENTS` (۶ قاعده V11) + `RB_CLAUSE`.
 
-- **Checkpoints (پلن):**
+  - [x] T2 — `src/iso17929_engine.py`: dataclass `RiskAssessment` (acceleration_rb / overall_rb / extremity / per_axis_levels / metadata_status / test_required) + `classify_risk_level` (بدترین-حالت؛ متادیتا اختیاری) + `extract_restraint_requirements` (قواعد دامنه‌ای و دامنه×مدت با note برای مدت نامشخص).
 
-  - [ ] T1 — `src/config.py`: `RB_ACCELERATION_TABLE` (سطرهای ax/ay/+az/−az با بازه‌های RB-1..RB-4 — B.1)، `RB_SPEED_HEIGHT_TABLE` (سرعت V و ارتفاع‌ها — اختیاری)، `RESTRAINT_REQUIREMENTS` (V11: قواعد مهار بر حسب دامنه/مدت با ارجاع بند)، `RB_EXTREMITY_MAP` (RB-1=high … RB-4=negligible).
+  - [x] T3 — ۱۲ آزمون جدید (مجموع ۴۲ در فایل) — همه پاس.
 
-  - [ ] T2 — `src/iso17929_engine.py`:
+  - [x] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش.
 
-    - `classify_risk_level(peaks: dict, device_meta: dict | None = None) -> dict` — منطق بدترین-حالت (most severe): هر سطر Table B.1 جدا رده‌گذاری و رده نهایی = ماکزیمم سطرها؛ در صورت ارائه سرعت/ارتفاع، سطرهای آن‌ها هم لحاظ می‌شوند.
+- **Changes:**
 
-    - `extract_restraint_requirements(peaks, durations) -> list[dict]` — قواعد V11 (مثلاً +az≥4g ⇒ تکیه‌گاه سر + میله کمر + مهار شانه) با ارجاع بند و وضعیت برقراری.
+  | فایل | تغییر | دلیل | نتیجه |
 
-    - خروجی dataclass `RiskAssessment` (level, per_axis_levels, extremity, restraints, clause) — بدون UI.
+  |---|---|---|---|
 
-  - [ ] T3 — آزمون: مرزهای بازه‌ها (3g/5g/2g)، بدترین-حالت غالب، دیتاست‌های مرزی (dose=5g → RB-1)، مهاربند +az≥4g، قطعیت و خطاهای ورودی.
+  | `src/config.py` | RB_ACCELERATION_TABLE / RB_SPEED_TABLE / RB_EXTREMITY_MAP / RESTRAINT_REQUIREMENTS | بند ۶ / Table B.1 | — |
 
-  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+  | `src/iso17929_engine.py` | RiskAssessment + classify_risk_level + extract_restraint_requirements | تسک ۳.۴ | +۱۳۵ خط |
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  | `tests/test_iso17929_engine.py` | گسترش به ۴۲ آزمون | بند ۷ | همه پاس |
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+- **Result / Validation:** ۴۲/۴۲ پاس موتور (۹۶/۹۶ کل پروژه). مرزها: ax=3.0→RB-1 و 2.9→RB-2 (قرارداد محافظه‌کارانه تاییدشده)؛ +az=1.9→RB-4 (اصلاح انتظار تست — <2g واقعاً RB-4 است)؛ -az: RB-4 فقط برای فقدان انحراف منفی (peak=0) — باند عددی catch-all حذف شد چون همه‌چیز را RB-4 می‌کرد. بدترین-حالت: +az=3.2 (RB-2) + سرعت 25m/s (RB-1) → overall=RB-1 با acceleration_rb=RB-2 و metadata_status متمایز. دیتاست‌ها: dose (5g)→RB-1، safe (1.57g)→RB-2/RB-3. مهاربند: +az=4.0→تکیه‌گاه سر+میله کمر met=True؛ 3.9→False؛ ay=1.2 بدون مدت → note «duration unknown». UI-free (بند ۴). **فاز ۳ بسته شد.**

@@ -374,3 +374,119 @@ def test_3d_sample_ratios_frame_shape():
     assert list(ratios.columns) == ["time", "ratio_xy", "ratio_xz", "ratio_yz", "ratio_3d"]
     assert len(ratios) == len(frame)
     assert np.allclose(ratios["time"], frame["time"])
+
+
+# --- Task 3.4: RB classification and restraints (Table B.1) ----------------------
+
+
+
+from src.iso17929_engine import RiskAssessment, classify_risk_level, extract_restraint_requirements  # noqa: E402
+
+
+
+
+
+def test_ax_boundary_belongs_to_higher_level():
+    # conservative reading: 3.0 g is RB-1, 2.9 g is RB-2
+    assert classify_risk_level({"ax": 3.0}).overall_rb == "RB-1"
+    assert classify_risk_level({"ax": 2.9}).overall_rb == "RB-2"
+    assert classify_risk_level({"ax": 1.0}).overall_rb == "RB-2"
+    assert classify_risk_level({"ax": 0.2}).overall_rb == "RB-3"
+    assert classify_risk_level({"ax": 0.1}).overall_rb == "RB-4"
+
+
+def test_az_boundaries():
+    assert classify_risk_level({"+az": 5.0}).overall_rb == "RB-1"
+    assert classify_risk_level({"+az": 4.9}).overall_rb == "RB-2"
+    assert classify_risk_level({"+az": 3.0}).overall_rb == "RB-2"
+    assert classify_risk_level({"+az": 1.9}).overall_rb == "RB-4"  # < 2 g
+    assert classify_risk_level({"-az": 2.0}).overall_rb == "RB-1"
+    assert classify_risk_level({"-az": 1.0}).overall_rb == "RB-2"
+    assert classify_risk_level({"-az": 0.5}).overall_rb == "RB-3"
+
+
+def test_worst_case_across_axes():
+    peaks = {"ax": 1.2, "ay": 0.7, "+az": 3.2, "-az": 0.5}
+    assessment = classify_risk_level(peaks)
+    assert assessment.per_axis_levels["ax"] == "RB-2"
+    assert assessment.per_axis_levels["ay"] == "RB-2"
+    assert assessment.per_axis_levels["+az"] == "RB-2"
+    assert assessment.per_axis_levels["-az"] == "RB-3"
+    assert assessment.acceleration_rb == "RB-2"
+    assert assessment.overall_rb == "RB-2"
+    assert assessment.extremity == "medium"
+
+
+def test_metadata_speed_raises_overall_level():
+    peaks = {"ax": 1.2, "ay": 0.7, "+az": 3.2}  # RB-2 from acceleration
+    baseline = classify_risk_level(peaks)
+    assert baseline.acceleration_rb == "RB-2"
+    assert baseline.overall_rb == "RB-2"
+    assert "not provided" in baseline.metadata_status
+
+    with_speed = classify_risk_level(peaks, device_meta={"speed_mps": 25.0})
+    assert with_speed.acceleration_rb == "RB-2"
+    assert with_speed.overall_rb == "RB-1"  # speed 25 m/s is RB-1
+    assert "applied" in with_speed.metadata_status
+
+
+def test_note3_testing_flag():
+    assert classify_risk_level({"+az": 5.5}).test_required is True
+    assert classify_risk_level({"+az": 3.5}).test_required is True
+    assert classify_risk_level({"+az": 2.5}).test_required is False
+
+
+def test_empty_peaks_raises():
+    with pytest.raises(ValueError, match="at least one classified axis"):
+        classify_risk_level({})
+
+
+def test_restraints_headrest_rule_at_4g():
+    rules = extract_restraint_requirements({"+az": 4.0, "ax": 0.0, "ay": 0.0, "-ax": 0.0})
+    headrest = next(r for r in rules if r["condition"] == "+az >= 4")
+    assert headrest["met"] is True
+    assert "waist bar" in headrest["requirement"]
+    assert headrest["clause"] == "ISO 17929 §B.11"
+    # just below: not required
+    rules = extract_restraint_requirements({"+az": 3.9, "ax": 0.0, "ay": 0.0, "-ax": 0.0})
+    assert next(r for r in rules if r["condition"] == "+az >= 4")["met"] is False
+
+
+def test_restraints_lap_bar_on_negative_ax():
+    rules = extract_restraint_requirements({"-ax": 2.0, "ax": 0.0, "ay": 0.0, "+az": 0.0})
+    lap = next(r for r in rules if r["condition"] == "-ax >= 2")
+    assert lap["met"] is True
+
+
+def test_restraints_duration_unknown_reported():
+    rules = extract_restraint_requirements({"ay": 1.2})
+    y_rule = next(r for r in rules if r["condition"].startswith("y > 0.5"))
+    assert y_rule["met"] is False
+    assert y_rule["note"] == "duration unknown; cannot evaluate"
+
+
+def test_restraints_duration_evaluated_when_provided():
+    rules = extract_restraint_requirements(
+        {"ay": 1.2}, durations={"ay": 40.0}
+    )
+    y_rule = next(r for r in rules if r["condition"].startswith("y > 0.5"))
+    assert y_rule["met"] is True  # 1.2 g > 1.0 for > 10 s
+
+
+def test_rb_datasets_classification():
+    build_all_datasets()
+    dose = pd.read_csv("data/data_cumulative_dose_violation.csv")
+    peaks = {"+az": float(dose["az"].max()), "-az": 0.0}
+    assert classify_risk_level(peaks).overall_rb == "RB-1"  # 5 g +az
+
+    safe = pd.read_csv("data/data_safe_family.csv")
+    peaks = {"+az": float(safe["az"].max()), "-az": 0.0}
+    assessment = classify_risk_level(peaks)
+    assert assessment.overall_rb in ("RB-2", "RB-3")  # 1.57 g +az
+
+
+def test_risk_assessment_is_dataclass():
+    assessment = classify_risk_level({"ax": 3.5})
+    assert isinstance(assessment, RiskAssessment)
+    assert assessment.clause == "ISO 17929 Table B.1"
+    assert assessment.extremity == "high"
