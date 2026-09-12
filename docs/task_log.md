@@ -252,3 +252,30 @@
   | `data/data_cumulative_dose_violation.csv` | بازتولید — زنجیره 0.05s قبل از عبور 2g | نقض واقعی B.15 (min=2.35g) | آزمون‌های datasets همچنان پاس |
 
 - **Result / Validation:** ۲۲/۲۲ پاس موتور (۷۶/۷۶ کل پروژه): مساحت ذوزنقه با جواب تحلیلی خطای <0.02 g·s؛ شمارش تکانه: safe=2، jerk=1، dose=3؛ نقض ریکاوری روی dose: ۲ بازه با min=2.35g>2.0 و `clause="ISO 17929 §B.15"`؛ safe_family: dose و ریکاوری کامل؛ override ظرفیت (0.01) → dose_compliant=False؛ قطعیت و impulse_id ترتیبی با `clause="ISO 17929 §B.4"`. اصلاحات طراحی: (۱) گیت نویز 20ms — نوسان 4ms حذف شد؛ (۲) پالس‌های زنجیره‌ای B.15 هرگز زیر آستانه نمی‌روند و در یک گیت ادغام می‌شدند — با شکافتن در دره‌های |a| (find_peaks) سه تکانه مجزا شناسایی شد. UI-free (بند ۴).
+
+
+### Task 3.3 — ماژول نامساوی سه‌بعدی (بیضوی B.6) ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** پیاده‌سازی پایش ترکیب همزمان سه محور در `src/iso17929_engine.py`: (ax/ax,adm)² + (ay/ay,adm)² + (az/az,adm)² ≤ 1.0 — با adm وابسته به مدت مواجهه از پاکت‌های گسسته B.11–B.14، استثنای ترکیب < 0.2 s، و گزارش نقض‌های جفتی/سه‌بعدی تفکیک‌شده (V9).
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — `src/config.py`: جدول پاکت‌های گسسته هر محور/قطبیت `AXIS_PACKETS` (مقادیر V6 با ارجاع B.11–B.14؛ برچسب بازساخت‌شده) + `COMBINED_EXCLUSION_S = 0.2` (B.16) + `COMBINED_CLAUSE`.
+
+  - [ ] T2 — `src/iso17929_engine.py`:
+
+    - `lookup_adm(axis, polarity, duration_s) -> float` — درون‌یابی خطی بین رئوس پاکت گسسته (ابهام A1: خطی بین نقاط).
+
+    - `evaluate_3d_combined_inequality(df, adm_lookup, duration=per-sample) -> dict` — نسبت بیضوی نمونه‌به‌نمونه + پوش بازه‌های ناقض سه‌بعدی و جفتی تفکیک‌شده + استثنای < 0.2 s؛ adm per-sample محافظه‌کار (فرض A6 ثبت‌شده؛ گزینه per-impulse در ADR آینده پس از تأیید استاد).
+
+  - [ ] T3 — آزمون: `data_3d_combined_violation.csv` → نقض فقط سه‌بعدی (جفتی‌ها ≤1)؛ safe_family → پاس؛ دقت درون‌یابی پاکت؛ استثنای 0.2s؛ UI-free.
+
+  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
