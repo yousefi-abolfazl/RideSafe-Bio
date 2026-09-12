@@ -14,6 +14,9 @@ import pandas as pd
 
 from src.config import (
     ACCELERATION_COLUMNS,
+    AXIS_PACKETS,
+    COMBINED_CLAUSE,
+    COMBINED_EXCLUSION_S,
     DOSE_CLAUSE,
     DOSE_TOLERANCE_GS,
     IMPULSE_MIN_AMPLITUDE_G,
@@ -318,3 +321,148 @@ def compute_cumulative_dose(
     return result
 
 
+
+
+# --- Task 3.3: combined multi-axis inequality (B.6, B.16) ------------------------
+
+
+
+
+
+def lookup_adm(axis: str, polarity: int, duration_s: float) -> float:
+
+    """Permissible acceleration adm (g) for an exposure duration (B.11-B.14).
+
+
+
+    Linear interpolation between discrete packet vertices (ambiguity A1);
+
+    below the first vertex the packet maximum applies; beyond the last the
+
+    sustained value holds.
+    """
+    if axis not in ("x", "y", "z"):
+        raise ValueError(f"axis must be 'x', 'y' or 'z', got {axis!r}")
+    key = f"{'+' if polarity >= 0 else '-'}{axis}" if axis in ("x", "z") else "y"
+    if key not in AXIS_PACKETS:
+        raise ValueError(f"Unknown axis packet {key!r}; available: {sorted(AXIS_PACKETS)}")
+    points = AXIS_PACKETS[key]
+    times = [p[0] for p in points]
+    limits = [p[1] for p in points]
+    if duration_s < times[0]:
+        return limits[0]
+    if duration_s > times[-1]:
+        return limits[-1]
+    return float(np.interp(duration_s, times, limits))
+
+
+def evaluate_3d_combined_inequality(
+    df: pd.DataFrame,
+    duration_s: float | None = None,
+    exclusion_s: float = COMBINED_EXCLUSION_S,
+) -> dict:
+    """Per-sample 3D ellipsoid check (B.6) with pairwise breakdown (B.3-B.5).
+
+    adm per sample uses the instantaneous polarity of ax/az (y symmetric) and
+    a common exposure duration: explicit override, else the contiguous
+    above-0.2 g span of each axis (ambiguity A6, conservative variant).
+    Ratio>1 runs shorter than exclusion_s land in excluded_transients (B.16)
+    and do not affect compliance.
+    """
+    for axis in ("ax", "ay", "az"):
+        if axis not in df.columns:
+            raise ValueError(f"Acceleration column {axis!r} missing for combined check")
+    time = df[TIME_COLUMN].to_numpy(dtype=float)
+    ax, ay, az = (df[c].to_numpy(dtype=float) for c in ("ax", "ay", "az"))
+
+    exposure_x = _exposure(duration_s, np.abs(ax), time)
+    exposure_y = _exposure(duration_s, np.abs(ay), time)
+    exposure_z = _exposure(duration_s, np.abs(az), time)
+    adm_x = np.array([lookup_adm("x", 1 if v >= 0 else -1, d)
+                      for v, d in zip(ax, exposure_x)])
+    adm_y = np.array([lookup_adm("y", 1, d) for d in exposure_y])
+    adm_z = np.array([lookup_adm("z", 1 if v >= 0 else -1, d)
+                      for v, d in zip(az, exposure_z)])
+
+    ratio_xy = (ax / adm_x) ** 2 + (ay / adm_y) ** 2
+    ratio_xz = (ax / adm_x) ** 2 + (az / adm_z) ** 2
+    ratio_yz = (ay / adm_y) ** 2 + (az / adm_z) ** 2
+    ratio_3d = ratio_xy + (az / adm_z) ** 2
+
+    sample_ratios = pd.DataFrame(
+        {"time": time, "ratio_xy": ratio_xy, "ratio_xz": ratio_xz,
+         "ratio_yz": ratio_yz, "ratio_3d": ratio_3d}
+    )
+
+    triaxial_all = _ratio_intervals(time, ratio_3d)
+    triaxial = [i for i in triaxial_all if i["duration_s"] >= exclusion_s]
+    excluded = [i for i in triaxial_all if i["duration_s"] < exclusion_s]
+    pairwise = {
+        pair: {
+            "max_ratio": float(r.max()),
+            "compliant": not any(i["duration_s"] >= exclusion_s
+                                 for i in _ratio_intervals(time, r)),
+        }
+        for pair, r in (("XY", ratio_xy), ("XZ", ratio_xz), ("YZ", ratio_yz))
+    }
+    return {
+        "compliant": not triaxial and all(p["compliant"] for p in pairwise.values()),
+        "max_ratio_3d": float(ratio_3d.max()),
+        "triaxial_violations": triaxial,
+        "excluded_transients": excluded,
+        "pairwise_results": pairwise,
+        "sample_ratios": sample_ratios,
+        "clause": COMBINED_CLAUSE,
+    }
+
+
+def _exposure(
+    duration_override: float | None, magnitude: np.ndarray, time: np.ndarray
+) -> np.ndarray:
+    """Per-sample exposure duration for adm lookup.
+
+    Explicit override applies everywhere; otherwise the contiguous span above
+    IMPULSE_MIN_AMPLITUDE_G that each sample belongs to (its impulse length).
+    """
+    if duration_override is not None:
+        return np.full_like(magnitude, float(duration_override))
+    above = magnitude > IMPULSE_MIN_AMPLITUDE_G
+    spans = np.full_like(magnitude, float(time[-1] - time[0]))
+    edges = np.flatnonzero(np.diff(above.astype(np.int8)) != 0) + 1
+    bounds = np.r_[0, edges, magnitude.size]
+    for s, e in zip(bounds[:-1], bounds[1:]):
+        if above[s]:
+            spans[s:e] = time[e - 1] - time[s]
+    return spans
+
+
+
+
+def _ratio_intervals(time: np.ndarray, ratios: np.ndarray) -> list[dict]:
+
+    """Contiguous ratio > 1 intervals with their geometry (B.6)."""
+
+    mask = ratios > 1.0
+
+    intervals: list[dict] = []
+
+    if not mask.any():
+        return intervals
+
+    edges = np.flatnonzero(np.diff(mask.astype(np.int8)) != 0) + 1
+
+    starts = np.r_[0, edges]
+    ends = np.r_[edges, mask.size]
+    for s, e in zip(starts, ends):
+        if not mask[s]:
+            continue
+        intervals.append(
+            {
+                "start_s": float(time[s]),
+                "end_s": float(time[e - 1]),
+                "duration_s": float(time[e - 1] - time[s]),
+                "peak_ratio": float(ratios[s:e].max()),
+                "clause": COMBINED_CLAUSE,
+            }
+        )
+    return intervals

@@ -254,28 +254,36 @@
 - **Result / Validation:** ۲۲/۲۲ پاس موتور (۷۶/۷۶ کل پروژه): مساحت ذوزنقه با جواب تحلیلی خطای <0.02 g·s؛ شمارش تکانه: safe=2، jerk=1، dose=3؛ نقض ریکاوری روی dose: ۲ بازه با min=2.35g>2.0 و `clause="ISO 17929 §B.15"`؛ safe_family: dose و ریکاوری کامل؛ override ظرفیت (0.01) → dose_compliant=False؛ قطعیت و impulse_id ترتیبی با `clause="ISO 17929 §B.4"`. اصلاحات طراحی: (۱) گیت نویز 20ms — نوسان 4ms حذف شد؛ (۲) پالس‌های زنجیره‌ای B.15 هرگز زیر آستانه نمی‌روند و در یک گیت ادغام می‌شدند — با شکافتن در دره‌های |a| (find_peaks) سه تکانه مجزا شناسایی شد. UI-free (بند ۴).
 
 
-### Task 3.3 — ماژول نامساوی سه‌بعدی (بیضوی B.6) ⏳ (پلن در انتظار تأیید)
+### Task 3.3 — ماژول نامساوی سه‌بعدی (بیضوی B.6) ✅
 
 
 
-- **Goal:** پیاده‌سازی پایش ترکیب همزمان سه محور در `src/iso17929_engine.py`: (ax/ax,adm)² + (ay/ay,adm)² + (az/az,adm)² ≤ 1.0 — با adm وابسته به مدت مواجهه از پاکت‌های گسسته B.11–B.14، استثنای ترکیب < 0.2 s، و گزارش نقض‌های جفتی/سه‌بعدی تفکیک‌شده (V9).
+- **Goal:** پایش ترکیب همزمان سه محور: (ax/ax,adm)² + (ay/ay,adm)² + (az/az,adm)² ≤ 1.0 با adm وابسته به مدت از پاکت‌های گسسته B.11–B.14، استثنای < 0.2 s (B.16)، تفکیک نقض جفتی/سه‌بعدی.
 
+- **Checkpoints:**
 
+  - [x] T1 — `src/config.py`: `AXIS_PACKETS` (فرمت (duration_s, limit_g) صعودی — B.11–B.14، بازساخت‌شده) + `COMBINED_EXCLUSION_S=0.2` + `COMBINED_CLAUSE`.
 
-- **Checkpoints (پلن):**
+  - [x] T2 — `lookup_adm(axis, polarity, duration_s)` (درون‌یابی np.interp؛ زیر اولین رأس → ماکزیمم، فراتر از آخرین → پایدا) + `evaluate_3d_combined_inequality(df, duration_s=None, exclusion_s)` (adm per-sample با قطبیت لحظه‌ای ax/az، مدت تعرض = override یا span بالای 0.2g همان محور؛ خروجی شامل sample_ratios برای داشبورد فاز ۴).
 
-  - [ ] T1 — `src/config.py`: جدول پاکت‌های گسسته هر محور/قطبیت `AXIS_PACKETS` (مقادیر V6 با ارجاع B.11–B.14؛ برچسب بازساخت‌شده) + `COMBINED_EXCLUSION_S = 0.2` (B.16) + `COMBINED_CLAUSE`.
+  - [x] T3 — ۸ آزمون جدید (مجموع ۳۰ در فایل) — همه پاس.
 
-  - [ ] T2 — `src/iso17929_engine.py`:
+  - [x] T4 — Changes/Result + roadmap + commit + پوش.
 
-    - `lookup_adm(axis, polarity, duration_s) -> float` — درون‌یابی خطی بین رئوس پاکت گسسته (ابهام A1: خطی بین نقاط).
+- **Changes:**
 
-    - `evaluate_3d_combined_inequality(df, adm_lookup, duration=per-sample) -> dict` — نسبت بیضوی نمونه‌به‌نمونه + پوش بازه‌های ناقض سه‌بعدی و جفتی تفکیک‌شده + استثنای < 0.2 s؛ adm per-sample محافظه‌کار (فرض A6 ثبت‌شده؛ گزینه per-impulse در ADR آینده پس از تأیید استاد).
+  | فایل | تغییر | دلیل | نتیجه |
 
-  - [ ] T3 — آزمون: `data_3d_combined_violation.csv` → نقض فقط سه‌بعدی (جفتی‌ها ≤1)؛ safe_family → پاس؛ دقت درون‌یابی پاکت؛ استثنای 0.2s؛ UI-free.
+  |---|---|---|---|
 
-  - [ ] T4 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+  | `src/config.py` | AXIS_PACKETS + COMBINED_* | بند ۶ / V6 | — |
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  | `src/iso17929_engine.py` | lookup_adm + evaluate_3d_combined_inequality + _exposure + _ratio_intervals | تسک ۳.۳ | +۱۳۵ خط |
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `src/synthetic_gen.py` | پارامتر offset برای generate_sine_wave | ساخت دیتاست با بایاس +z | سازگار با تست‌های قبلی |
+
+  | `src/datasets.py` + `data/data_3d_combined_violation.csv` | بازطراحی: ax=1.73+1.73sin، ay=1.1sin، az=1.9+1.9sin (بایاس مثبت +z) | نقض انحصاری B.6 | تکانه‌ها: jفت‌ها ≤1، سه‌بعدی >1 پایدار |
+
+  | `tests/test_datasets.py` | به‌روزرسانی ادعاهای ۳بعدی | همگام با داده جدید | پاس |
+
+- **Result / Validation:** ۸۴/۸۴ کل پروژه (۳۰ تست موتور). دیتاست جدید: سه بازه ناقض sustained (≥0.2s) با peak_ratio≈1.19، هر سه جفت XY/XZ/YZ ≤1 (0.78/0.88/0.71) — نقض انحصاری سه‌بعدی تأیید شد. safe_family کاملاً پاس. استثنای B.16: اسپایک 6g/0.1s با r3=1.078 → صرفاً excluded_transients، compliant=True. اصلاحات حین TDD: (۱) lookup_adm محور نامعتبر را بی‌سروصدا به y نگاشت می‌کرد → اعتبارسنجی صریح؛ (۲) داده قدیمی با adm per-sample اصلاً نقض نمی‌شد (z-term=0.1) → هندسه دیتاست با جست‌وجوی پارامتری بازطراحی شد؛ (۳) قطبیت منفی az پاکت -z (سقف 2g) را فعال می‌کرد → بایاس مثبت +z الزامی شد. UI-free (بند ۴).

@@ -64,3 +64,34 @@ RECOVERY_THRESHOLD_G = 2.0
 DOSE_TOLERANCE_GS = 11129.0
 
 DOSE_CLAUSE = "ISO 17929 §B.15"
+
+
+# ISO 17929 sections B.11-B.14: discrete acceleration packets per axis and
+
+# polarity. Values are (duration_s, limit_g) pairs sorted ascending by
+
+# duration; reconstructed from the WIP figures (accuracy ≈ ±0.1-0.2 g).
+
+AXIS_PACKETS: dict[str, list[tuple[float, float]]] = {
+
+    "+x": [(6, 5.0), (12, 4.0), (24, 3.0), (300, 2.0)],
+
+    "-x": [(6, 3.0), (12, 2.5), (40, 1.7), (300, 1.0)],
+
+    "y": [(4, 2.0), (40, 1.0), (300, 1.0)],
+
+    "+z": [(1, 6.0), (3, 5.0), (6, 4.0), (12, 3.0), (240, 2.0)],
+
+    "-z": [(0.2, 2.0), (4, 1.5)],
+
+}
+
+
+
+# ISO 17929 section B.16: combined combinations shorter than 0.2 s are
+
+# excluded from verdicts (reported informationally only).
+
+COMBINED_EXCLUSION_S = 0.2
+
+COMBINED_CLAUSE = "ISO 17929 §B.6"

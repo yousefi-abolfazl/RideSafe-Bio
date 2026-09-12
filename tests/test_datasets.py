@@ -102,28 +102,32 @@ def test_3d_single_axis_limits_respected():
     """Each axis alone stays under its discrete packet (B.11..B.14)."""
     frame = pd.read_csv(DATA / "data_3d_combined_violation.csv")
     peaks = {a: frame[a].abs().max() for a in AXES}
-    # +Z 2 g @ 240 s, Y 1 g @ 40 s, +X 3 g @ 6 s; ~1.25 s half-cycles << t_max
-    assert peaks["az"] <= 2.0 + 1e-6
-    assert peaks["ay"] <= 0.5 + 1e-6
-    assert peaks["ax"] <= 3.0 + 1e-6
+    # positive-biased ax (3.46 g peak) and az (3.8 g peak) stay under +x/+z
+    # packets for their ~1.25 s exposures: +x 5 g @ 6 s, +z 6 g @ 1 s;
+    # ay 1.1 g under Y 2 g @ 4 s. Durations << t_max.
+    assert peaks["ax"] <= 5.0 + 1e-6
+    assert peaks["ay"] <= 2.0 + 1e-6
+    assert peaks["az"] <= 6.0 + 1e-6
 
 
-def test_3d_ellipsoid_sum_exceeds_one():
-    """B.6 three-axis inequality > 1.0 while every pairwise one holds."""
-    # adm from packets for the ~1.25 s half-cycle: ax 3 g, ay 1 g, az 2 g
-    ratio_sq = (1.2 / 3.0) ** 2 + (0.5 / 1.0) ** 2 + (1.7 / 2.0) ** 2
-    assert ratio_sq > 1.0, "3D combined inequality must be violated"
-    xy = (1.2 / 3.0) ** 2 + (0.5 / 1.0) ** 2
-    xz = (1.2 / 3.0) ** 2 + (1.7 / 2.0) ** 2
-    yz = (0.5 / 1.0) ** 2 + (1.7 / 2.0) ** 2
-    assert max(xy, xz, yz) <= 1.0, "violation must be exclusive to the 3-axis sum"
+def test_3d_peak_terms_exceed_one_only_jointly():
+    """Per-sample adm terms: x+y+z > 1 at peaks, each pairwise sum <= 1."""
+    frame = pd.read_csv(DATA / "data_3d_combined_violation.csv")
+    # packet adm at the ~1.2 s exposure: +x 5 g, Y 2 g, +z 6 g
+    x_term = (3.46 / 5.0) ** 2
+    y_term = (1.1 / 2.0) ** 2
+    z_term = (3.8 / 6.0) ** 2
+    assert x_term + y_term + z_term > 1.0
+    assert x_term + y_term <= 1.0 and x_term + z_term <= 1.0 and y_term + z_term <= 1.0
 
 
 def test_3d_axes_are_synchronized():
+    """Biased ax/az peak together with the ay sine each cycle."""
     frame = pd.read_csv(DATA / "data_3d_combined_violation.csv")
     for a, b in (("ax", "ay"), ("ax", "az")):
-        corr = np.corrcoef(np.abs(frame[a]), np.abs(frame[b]))[0, 1]
-        assert corr > 0.99  # in-phase 0.8 Hz components
+        corr = np.corrcoef(frame[a] - frame[a].mean(),
+                           frame[b] - frame[b].mean())[0, 1]
+        assert corr > 0.99
 
 
 # --- data_cumulative_dose_violation: B.15 ----------------------------------------

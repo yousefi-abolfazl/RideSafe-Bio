@@ -278,3 +278,99 @@ def test_impulse_ids_are_sequential_and_traceable():
     impulses = detect_impulses(frame, axis="az")
     assert [i.impulse_id for i in impulses] == [1, 2, 3]
     assert all(i.clause == "ISO 17929 §B.4" for i in impulses)
+
+
+# --- Task 3.3: three-axis combined inequality (B.6 / B.16) -----------------------
+
+
+
+from src.config import AXIS_PACKETS, COMBINED_EXCLUSION_S  # noqa: E402
+
+from src.iso17929_engine import lookup_adm, evaluate_3d_combined_inequality  # noqa: E402
+
+
+
+
+
+def test_lookup_adm_vertex_values_exact():
+    assert lookup_adm("z", 1, 1.0) == 6.0
+    assert lookup_adm("z", 1, 3.0) == 5.0
+    assert lookup_adm("z", 1, 240.0) == 2.0
+    assert lookup_adm("x", -1, 6.0) == 3.0
+    assert lookup_adm("y", 1, 4.0) == 2.0
+
+
+def test_lookup_adm_interpolates_and_clamps():
+    # between +z vertices 1 s (6 g) and 3 s (5 g): midpoint 5.5
+    assert lookup_adm("z", 1, 2.0) == pytest.approx(5.5)
+    # below first vertex: packet maximum (6 g)
+    assert lookup_adm("z", 1, 0.1) == 6.0
+    # beyond last vertex: sustained value (2 g)
+    assert lookup_adm("z", 1, 500.0) == 2.0
+    assert lookup_adm("x", 1, 400.0) == 2.0
+    assert lookup_adm("x", -1, 400.0) == 1.0
+
+
+def test_lookup_adm_polarity_and_errors():
+    assert lookup_adm("x", -1, 40.0) == 1.7
+    assert lookup_adm("x", 1, 40.0) == pytest.approx(
+        np.interp(40, [6, 12, 24, 300], [5, 4, 3, 2]))
+    with pytest.raises(ValueError, match="axis must be"):
+        lookup_adm("w", 1, 1.0)
+
+def test_3d_violation_dataset_triaxial_fail_pairwise_pass():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_3d_combined_violation.csv")
+    result = evaluate_3d_combined_inequality(frame)
+    assert result["compliant"] is False
+    assert result["max_ratio_3d"] > 1.0
+    assert len(result["triaxial_violations"]) >= 1
+    for violation in result["triaxial_violations"]:
+        assert violation["duration_s"] >= COMBINED_EXCLUSION_S
+        assert violation["clause"] == "ISO 17929 §B.6"
+    for pair, check in result["pairwise_results"].items():
+        assert check["compliant"] is True, f"{pair} must stay under 1.0"
+        assert check["max_ratio"] <= 1.0
+
+
+def test_3d_safe_family_dataset_fully_compliant():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_safe_family.csv")
+    result = evaluate_3d_combined_inequality(frame)
+    assert result["compliant"] is True
+    assert result["triaxial_violations"] == []
+    assert result["max_ratio_3d"] <= 1.0
+
+
+def test_3d_duration_override_changes_verdict():
+    """Same data with a long exposure override (stricter adm) must violate."""
+    build_all_datasets()
+    frame = pd.read_csv("data/data_3d_combined_violation.csv")
+    relaxed = evaluate_3d_combined_inequality(frame, duration_s=1.0)
+    strict = evaluate_3d_combined_inequality(frame, duration_s=300.0)
+    assert strict["max_ratio_3d"] > relaxed["max_ratio_3d"]
+
+
+def test_3d_transient_exclusion_under_200ms():
+    """A spike violating the ratio for < 0.2 s is excluded (B.16)."""
+    from src.synthetic_gen import generate_transient_spike
+    # 6 g spike on +z (adm 6 g below the 1 s vertex) plus 1.4 g static ax:
+    # ratio peaks at 1.078 > 1 but the >1 run lasts ~0.03 s < 0.2 s.
+    frame = generate_transient_spike(FS, 2.0, peak_amplitude=6.0,
+                                     spike_width_s=0.1, axis="az")
+    frame["ax"] = 1.4
+    result = evaluate_3d_combined_inequality(frame)
+    assert result["triaxial_violations"] == []
+    assert result["compliant"] is True
+    assert len(result["excluded_transients"]) >= 1
+    assert result["max_ratio_3d"] > 1.0  # exceeded, but excluded by duration
+
+
+def test_3d_sample_ratios_frame_shape():
+    build_all_datasets()
+    frame = pd.read_csv("data/data_3d_combined_violation.csv")
+    result = evaluate_3d_combined_inequality(frame)
+    ratios = result["sample_ratios"]
+    assert list(ratios.columns) == ["time", "ratio_xy", "ratio_xz", "ratio_yz", "ratio_3d"]
+    assert len(ratios) == len(frame)
+    assert np.allclose(ratios["time"], frame["time"])

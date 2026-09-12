@@ -48,18 +48,17 @@ def generate_sine_wave(
     frequency: float,
     axis: str = "az",
     phase: float = 0.0,
+    offset: float = 0.0,
     seed: int | None = None,
 ) -> pd.DataFrame:
-    """Pure sinusoid in g on one axis; other axes stay at zero."""
+    """Sinusoid (optionally DC-offset) in g on one axis; other axes zero."""
     n = _validate_grid(fs, duration)
     frame = _new_frame(n, fs)
     axis = _resolve_axis(axis)
-    frame[axis] = amplitude * np.sin(
+    frame[axis] = offset + amplitude * np.sin(
         2 * np.pi * frequency * frame[TIME_COLUMN].to_numpy() + phase
     )
     return frame
-
-
 def generate_trapezoid_pulse(
     fs: float,
     duration: float,

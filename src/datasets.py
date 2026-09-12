@@ -74,12 +74,15 @@ def build_jerk_violation(output_dir: str = "data", seed: int = DEFAULT_SEED) -> 
 
 @_register("data_3d_combined_violation.csv")
 def build_3d_combined_violation(output_dir: str = "data", seed: int = DEFAULT_SEED) -> dict:
+    # B.6 exclusive violation: x+y+z terms > 1 while every pairwise sum stays
+    # <= 1. Positive-biased ax/az keep the +x/+z packets applicable; ay is
+    # symmetric. Peak terms: (3.46/5)^2=0.48, (1.1/2)^2=0.30, (3.8/6)^2=0.40.
     frame = generate_composite_signal(
         FS, 4.0,
         [
-            ("sine", dict(amplitude=1.2, frequency=0.8, axis="ax")),
-            ("sine", dict(amplitude=0.5, frequency=0.8, axis="ay")),
-            ("sine", dict(amplitude=1.7, frequency=0.8, axis="az")),
+            ("sine", dict(amplitude=1.73, offset=1.73, frequency=0.8, axis="ax")),
+            ("sine", dict(amplitude=1.1, frequency=0.8, axis="ay")),
+            ("sine", dict(amplitude=1.9, offset=1.9, frequency=0.8, axis="az")),
         ],
         seed=seed,
     )
