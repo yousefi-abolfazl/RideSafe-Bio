@@ -359,3 +359,44 @@
   | `tests/test_app.py` | ایجاد — ۹ آزمون | بند ۷ | همه پاس |
 
 - **Result / Validation:** ۱۰۵/۱۰۵ کل پروژه (۹ تست UI). Smoke سرور: `streamlit run app.py` پورت 8601 → HTTP 200 + health `ok` + صفر Traceback در لاگ. رفع باگ حین TDD: `str.split(r"\s+")` در پایتون لایترال است نه رجکس — تشخیص whitespace با `re.split` اصلاح شد (تست مرزی بود و شکست خورد/رفع شد). ساختار import-safe: `render_dashboard()` فقط در اجرای Streamlit صدا زده می‌شود؛ توابع خالص بدون runtime قابل تست‌اند. `src/` همچنان UI-free (بند ۴).
+
+
+### UX Fix — تب Signal (بازخورد کارفرما) ⏳
+
+
+
+- **Goal:** رفع سردرگمی نمایش ۵۰ سطر صفرِ ابتدای سیگنال.
+
+- **Checkpoints:**
+
+  - [ ] U1 — `st.dataframe` کل دیتای فیلترشده (virtualized) به‌جای head(50).
+
+  - [ ] U2 — کارت‌های خلاصه: Peak ax/ay/az + مدت کل سیگنال بالای تب Signal.
+
+  - [ ] U3 — `st.download_button` برای CSV کامل فیلترشده.
+
+
+
+### Task 4.2 — نمودارهای تعاملی Plotly ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** مصورسازی دینامیکی (FR-4.2): (۱) سری زمانی سه‌محوره با سایه‌زنی قرمز بازه‌های ناقض (Jerk B.5 + بیضی B.6)؛ (۲) پراکندگی ۳بعدی بردار شتاب در برابر بیضی استاندارد B.6 با تفکیک رنگی داخل/خارج (سبز/قرمز) — رندر زیر ۱ ثانیه.
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — `plot_time_series(filtered, jerk_verdict, combined) -> go.Figure`: سه trace + vrect برای هر بازه ناقض (جدا Jerk/3D با رنگ قرمز نیمه‌شفاف) + transients مستثنی با خاکستری.
+
+  - [ ] T2 — `plot_3d_ellipsoid(filtered, combined) -> go.Figure`: Scatter3d دو‌گروهی (داخل/خارج بیضی بر اساس ratio_3d ≤ 1) + سطح بیضی (Mesh3d از نقاط نمونه‌برداری واحد adm لحظه‌ای).
+
+  - [ ] T3 — اتصال به تب‌ها: Signal → نمودار سری زمانی؛ Evaluation → نمودار ۳بعدی؛ بودجه رندر: lim هر trace با downsample هوشمند (هر n-ام نمونه اگر > 20k).
+
+  - [ ] T4 — آزمون‌ها: شکل‌ها (تعداد trace، تعداد vrect معادل بازه‌ها، بُعد Scatter3d) بدون نیاز به رندر مرورگر؛ پرف: زمان تولید هر figure < 1s.
+
+  - [ ] T5 — Changes/Result + roadmap + commit `feat: ...` + پوش + smoke سرور.
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
