@@ -19,6 +19,7 @@ from src.config import (
     ACCELERATION_COLUMNS,
     FILTER_DEFAULTS,
     JERK_LIMITS,
+    RB_BADGE_COLORS,
     TIME_COLUMN,
 )
 from src.datasets import DATASET_BUILDERS
@@ -93,6 +94,52 @@ def apply_axis_settings(frame: pd.DataFrame, invert: dict[str, bool]) -> pd.Data
         if flip and axis in out.columns:
             out[axis] = -out[axis].to_numpy(dtype=float)
     return out
+
+
+def build_risk_badge_html(level: str, extremity: str, color: str) -> str:
+    """HTML for the big RB badge (client-approved palette)."""
+    return (
+        f'<div style="display:inline-flex;align-items:center;gap:14px;'
+        f'padding:10px 22px;border-radius:12px;background:{color}1a;'
+        f'border:2px solid {color};margin:4px 0;">'
+        f'<span style="font-size:34px;font-weight:800;color:{color};">'
+        f'{level}</span>'
+        f'<span style="font-size:16px;font-weight:600;'
+        f'text-transform:uppercase;letter-spacing:1px;color:{color};">'
+        f'{extremity} extremity</span></div>'
+    )
+
+
+def build_compliance_banner_html(compliant: bool) -> str:
+    """HTML for the overall PASS/FAIL banner (red reserved for FAIL)."""
+    if compliant:
+        return (
+            '<div style="padding:14px 24px;border-radius:12px;'
+            'background:#2e7d321a;border:2px solid #2e7d32;'
+            'font-size:22px;font-weight:800;color:#2e7d32;margin:4px 0;">'
+            '&#10004; PASS — Compliant with ISO 17929</div>'
+        )
+    return (
+        '<div style="padding:14px 24px;border-radius:12px;'
+        'background:#b71c1c1a;border:2px solid #b71c1c;'
+        'font-size:22px;font-weight:800;color:#b71c1c;margin:4px 0;">'
+        '&#10006; NON-COMPLIANT — ISO 17929 criteria violated</div>'
+    )
+
+
+def build_per_axis_table(levels: dict[str, str | None]) -> pd.DataFrame:
+    """Per-axis classification rows with badge colors for conditional styling."""
+    rows = []
+    for axis, level in levels.items():
+        rows.append(
+            {
+                "Axis / Polarity": axis,
+                "Risk Level": level if level else "not evaluated",
+                "color": RB_BADGE_COLORS.get(level, "#9e9e9e"),
+            }
+        )
+    return pd.DataFrame(rows)
+
 
 def plot_time_series(
     filtered: pd.DataFrame,
@@ -439,7 +486,28 @@ def render_dashboard() -> None:
 
     with tab_passport:
         assessment = results["assessment"]
-        st.markdown(f"### Risk Level: **{assessment.overall_rb}** — *{assessment.extremity}*")
+
+        # overall compliance banner (red reserved for FAIL verdicts)
+        overall_ok = (
+            results["jerk_verdict"]["compliant"]
+            and results["dose"]["dose_compliant"]
+            and results["dose"]["recovery_compliant"]
+            and results["combined"]["compliant"]
+        )
+        st.markdown(
+            build_compliance_banner_html(overall_ok),
+            unsafe_allow_html=True,
+        )
+
+        # RB badge (client-approved palette; red is NOT used here)
+        st.markdown(
+            build_risk_badge_html(
+                assessment.overall_rb,
+                assessment.extremity,
+                RB_BADGE_COLORS[assessment.overall_rb],
+            ),
+            unsafe_allow_html=True,
+        )
         st.caption(f"{assessment.clause} · {assessment.metadata_status}")
         if assessment.test_required:
             st.info(
@@ -447,14 +515,62 @@ def render_dashboard() -> None:
                 "verification (ASTM F2137 / GOST R 56066-2014) recorded in the "
                 "technical passport."
             )
+
+        st.markdown("**Per-Axis Classification**")
+        axis_table = build_per_axis_table(assessment.per_axis_levels)
+        st.dataframe(
+            axis_table.drop(columns=["color"]),
+            use_container_width=True, hide_index=True,
+        )
+
+        active = sum(1 for r in assessment.restraints if r["met"])
+        st.metric("Active Requirements", active,
+                  f"of {len(assessment.restraints)} evaluated (V11)")
         st.markdown("**Restraint Requirements**")
         for rule in assessment.restraints:
-            st.checkbox(
-                f"{rule['condition']} → {rule['requirement']} ({rule['clause']})",
-                value=rule["met"], disabled=True,
+            icon = "🟠" if rule["met"] else "⚪"
+            weight = "600" if rule["met"] else "400"
+            color = "#e65100" if rule["met"] else "#9e9e9e"
+            st.markdown(
+                f'<div style="padding:6px 10px;border-left:3px solid {color};'
+                f'margin:4px 0;">{icon} <b style="color:{color};font-weight:{weight};">'
+                f'{rule["requirement"]}</b><br>'
+                f'<small>{rule["condition"]} · {rule["clause"]}'
+                + (f' · <i>{rule["note"]}</i>' if rule.get("note") else "")
+                + "</small></div>",
+                unsafe_allow_html=True,
             )
-        st.markdown("**Per-Axis Classification**")
-        st.json(assessment.per_axis_levels)
+
+        st.markdown("**Violation Traceability**")
+        trace_rows = []
+        for interval in results["jerk_verdict"]["violation_intervals"]:
+            trace_rows.append({
+                "Rule": "Jerk (B.5)", "Start Time": interval["start_s"],
+                "End Time": interval["end_s"],
+                "Peak Value": f'{interval["peak_jerk_g_per_s"]:.2f} g/s',
+                "Clause": interval["clause"],
+            })
+        for interval in results["combined"]["triaxial_violations"]:
+            trace_rows.append({
+                "Rule": "3D combined (B.6)", "Start Time": interval["start_s"],
+                "End Time": interval["end_s"],
+                "Peak Value": f'{interval["peak_ratio"]:.2f}',
+                "Clause": interval["clause"],
+            })
+        for violation in results["dose"]["recovery_violations"]:
+            trace_rows.append({
+                "Rule": "Cumulative dose recovery (B.15)",
+                "Start Time": f'between impulses {violation["between_ids"][0]}'
+                              f'-{violation["between_ids"][1]}',
+                "End Time": None,
+                "Peak Value": f'min {violation["min_g"]:.2f} g',
+                "Clause": violation["clause"],
+            })
+        if trace_rows:
+            st.dataframe(pd.DataFrame(trace_rows), use_container_width=True,
+                         hide_index=True)
+        else:
+            st.success("No violations recorded — full traceability table is empty.")
 
 
 render_dashboard()

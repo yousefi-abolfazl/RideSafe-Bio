@@ -213,3 +213,66 @@ def test_chart_render_time_under_one_second(jerk_dataset_results):
 
     elapsed = time.perf_counter() - start
     assert elapsed < 1.0, f"chart generation took {elapsed:.3f} s"
+
+
+# --- Task 4.3: risk passport panel (badges + table) ------------------------------
+
+
+
+from src.config import RB_BADGE_COLORS  # noqa: E402
+from app import build_compliance_banner_html, build_per_axis_table, build_risk_badge_html  # noqa: E402
+
+
+
+def test_risk_badge_html_contains_level_color_and_extremity():
+
+    html = build_risk_badge_html("RB-1", "high", RB_BADGE_COLORS["RB-1"])
+
+    assert "RB-1" in html and "extremity" in html
+
+    assert RB_BADGE_COLORS["RB-1"] in html
+
+    # red (FAIL color #b71c1c) must NOT appear in the classification badge
+
+    assert "#b71c1c" not in html
+
+
+
+
+
+def test_risk_badge_palette_distinct_from_fail_red():
+
+    for level, color in RB_BADGE_COLORS.items():
+        html = build_risk_badge_html(level, "x", color)
+        assert color in html
+        assert "#b71c1c" not in html  # FAIL-only color
+
+
+
+
+
+def test_compliance_banner_pass_and_fail_variants():
+
+    ok = build_compliance_banner_html(True)
+
+    fail = build_compliance_banner_html(False)
+
+    assert "PASS" in ok and "Compliant with ISO 17929" in ok
+
+    assert "NON-COMPLIANT" in fail
+
+    assert "#2e7d32" in ok and "#b71c1c" in fail  # green vs red
+
+
+
+
+
+def test_per_axis_table_rows_and_fallback_color():
+    table = build_per_axis_table({"+az": "RB-2", "ax": None, "-az": "RB-3"})
+    assert list(table.columns) == ["Axis / Polarity", "Risk Level", "color"]
+    assert len(table) == 3
+    rb2_row = table[table["Axis / Polarity"] == "+az"].iloc[0]
+    assert rb2_row["color"] == RB_BADGE_COLORS["RB-2"]
+    none_row = table[table["Axis / Polarity"] == "ax"].iloc[0]
+    assert none_row["Risk Level"] == "not evaluated"
+    assert none_row["color"] == "#9e9e9e"  # gray fallback

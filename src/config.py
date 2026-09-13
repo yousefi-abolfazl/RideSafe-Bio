@@ -225,3 +225,20 @@ RESTRAINT_REQUIREMENTS: list[dict] = [
 
 
 RB_CLAUSE = "ISO 17929 Table B.1"
+
+
+# Dashboard presentation (client-approved palette — red reserved for FAIL
+
+# verdicts, not for risk classification):
+
+RB_BADGE_COLORS = {
+
+    "RB-1": "#6a1b9a",  # dark purple / maroon — extreme
+
+    "RB-2": "#e65100",  # orange — general
+
+    "RB-3": "#0277bd",  # cyan-blue — family
+
+    "RB-4": "#2e7d32",  # emerald — children
+
+}

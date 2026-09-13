@@ -410,28 +410,36 @@
 - **Result / Validation:** ۱۱۰/۱۱۰ کل پروژه (۱۵ تست UI). vrectها = بازه‌های ناقض واقعی (۲ jerk روی data_jerk_violation)؛ تفکیک ۳بعدی: safe dataset → صفر نقطه قرمز؛ پرف تولید هر دو figure < 1s (تست timeit). رفع باگ حین TDD: key ناهمسان `violation_intervals` (jerk) در برابر `triaxial_violations` (3D). Smoke سرور: HTTP 200 + health ok + صفر Traceback. plotly فقط در app.py — `src/` UI-free (بند ۴).
 
 
-### Task 4.3 — پنل «شناسنامه ریسک و کارنامه ایمنی دستگاه» ⏳ (پلن در انتظار تأیید)
+### Task 4.3 — پنل «شناسنامه ریسک و کارنامه ایمنی دستگاه» ✅
 
 
 
-- **Goal:** تبدیل تب Risk Passport به پنل رسمی شناسنامه: Badge رنگی RB-1..RB-4 (سبز→قرمز با متریک extremity)، جدول طبقه‌بندی per-axis، کارت الزامات مهار (V11) با وضعیت برقراری، و بخش هشدارها — منبع داده: RiskAssessment تسک ۳.۴ (FR-4.3).
+- **Goal:** تب Risk Passport رسمی: بنر انطباق کلی PASS/NON-COMPLIANT + Badge رنگی RB (پالت اختصاصی؛ قرمز فقط برای FAIL) + جدول per-axis + کارت الزامات مهار با متریک Active Requirements + جدول ردیابی نقض‌ها.
 
+- **Checkpoints:**
 
+  - [x] T1 — Badge: `build_risk_badge_html` (خالص، تست‌پذیر) با پالت `RB_BADGE_COLORS` (RB-1 بنفش #6a1b9a، RB-2 نارنجی #e65100، RB-3 فیروزه‌ای #0277bd، RB-4 زمردی #2e7d32).
 
-- **Checkpoints (پلن):**
+  - [x] T2 — بنر انطباق: `build_compliance_banner_html` (سبز PASS / قرمز NON-COMPLIANT) — معیار: هر چهار معیار jerk/dose/recovery/3D.
 
-  - [ ] T1 — Badge: `render_risk_badge(assessment) -> None` — رنگ زمینه هر RB از `RB_BADGE_COLORS` (config جدید: RB-1 قرمز #d62728 … RB-4 سبز #2ca02c) با `st.markdown` HTML اینلاین (بadge بزرگ + توضیح extremity).
+  - [x] T3 — `build_per_axis_table`: DataFrame با رنگ شرطی + ردیف خاکستری «not evaluated» برای محورهای غایب (به‌جای st.json).
 
-  - [ ] T2 — جدول per-axis: `st.dataframe` از per_axis_levels (سطر: محور/قطبیت، ستون: RB + رنگ شرطی) به‌جای st.json خام.
+  - [x] T4 — کارت الزامات: متریک «Active Requirements: n of m» + آیتم‌های 🟠 فعال / ⚪ غیرفعال با شرط، بند و note مدت‌نامشخص.
 
-  - [ ] T3 — کارت الزامات مهار: هر قاعده V11 به‌صورت `st.markdown` با ✅/⬜ + شرط + requirement + clause؛ قواعد met=True قرمز/برجسته (الزام فعال) و بقیه خاکستری.
+  - [x] T5 — جدول ردیابی: ستون‌های Rule/Start Time/End Time/Peak Value/Clause از سه منبع نقض (Jerk/3D/dose-recovery).
 
-  - [ ] T4 — بخش هشدارها: هشدار Note 3 (آزمون فیزیکی RB-1/RB-2) + هشدارهای ارزیابی (jerk/3D/dose FAILها) یک‌جا با `st.error/warning`.
+  - [x] T6 — ۴ آزمون جدید (مجموع ۱۸ UI) + smoke سرور.
 
-  - [ ] T5 — آزمون: توابع خالص جدید (`render_risk_badge` به‌صورت build_html بدون st) — تست رنگ/متن/ساختار HTML؛ + smoke سرور.
+- **Changes:**
 
-  - [ ] T6 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+  | فایل | تغییر | دلیل | نتیجه |
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  |---|---|---|---|
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `src/config.py` | RB_BADGE_COLORS | پالت مصوب کارفرما | — |
+
+  | `app.py` | ۳ تابع خالص HTML/table + بازطراحی tab_passport | تسک ۴.۳ | +۹۰ خط |
+
+  | `tests/test_app.py` | +۴ آزمون پنل | بند ۷ | ۱۸/۱۸ |
+
+- **Result / Validation:** ۱۱۴/۱۱۴ کل پروژه (۱۸ تست UI). تست‌ها: رنگ صحیح هر RB در HTML، عدم وجود قرمز FAIL در badge (تفکیک معنایی از classification) — پالت قرمز #b71c1c فقط در banner NON-COMPLIANT. متن PASS/NON-COMPLIANT و fallback خاکستری محورهای غایب آزمون شد. Smoke سرور: HTTP 200 + health ok + صفر Traceback. UI-free بودن src/ حفظ شد (بند ۴).
