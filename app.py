@@ -7,9 +7,9 @@ Import-safe: the Streamlit script body runs under render_dashboard();
 pure helpers stay importable for unit tests.
 """
 
-from __future__ import annotations
-
 import io
+import json
+
 
 import numpy as np
 import pandas as pd
@@ -139,6 +139,140 @@ def build_per_axis_table(levels: dict[str, str | None]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def build_report(results: dict) -> dict:
+    """Structured JSON assessment report (technical passport source of truth)."""
+    from datetime import datetime, timezone
+
+    assessment: RiskAssessment = results["assessment"]
+    jerk_verdict: dict = results["jerk_verdict"]
+    dose: dict = results["dose"]
+    combined: dict = results["combined"]
+    filtered: pd.DataFrame = results["filtered"]
+
+    return {
+        "report_type": "ridesafe_bio_assessment",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "standard": "ISO/CD 17929:2026 (ISO 17842-1 prevails)",
+        "signal": {
+            "fs_hz": float(results["fs"]),
+            "n_samples": int(len(filtered)),
+            "duration_s": float(
+                filtered[TIME_COLUMN].iloc[-1] - filtered[TIME_COLUMN].iloc[0]
+            ),
+            "unit": "g",
+            "inversions": results["metadata"]["axis_inversions"],
+            "mapped_columns": results["metadata"]["mapped_columns"],
+        },
+        "verdicts": {
+            "jerk_b5": {
+                "compliant": jerk_verdict["compliant"],
+                "device_class": jerk_verdict["device_class"],
+                "active_limit_g_per_s": jerk_verdict["active_limit_g_per_s"],
+                "max_jerk_g_per_s": jerk_verdict["max_jerk_g_per_s"],
+                "violations": jerk_verdict["violation_intervals"],
+            },
+            "dose_b15": {
+                "dose_compliant": dose["dose_compliant"],
+                "recovery_compliant": dose["recovery_compliant"],
+                "total_dose_g_s": dose["total_dose_g_s"],
+                "tolerance_g_s": dose["tolerance_g_s"],
+                "impulse_count": dose["impulse_count"],
+                "recovery_violations": dose["recovery_violations"],
+            },
+            "combined_b6": {
+                "compliant": combined["compliant"],
+                "max_ratio_3d": combined["max_ratio_3d"],
+                "triaxial_violations": combined["triaxial_violations"],
+                "excluded_transients": combined["excluded_transients"],
+                "pairwise_results": combined["pairwise_results"],
+            },
+        },
+        "risk": {
+            "acceleration_rb": assessment.acceleration_rb,
+            "overall_rb": assessment.overall_rb,
+            "extremity": assessment.extremity,
+            "per_axis_levels": assessment.per_axis_levels,
+            "metadata_status": assessment.metadata_status,
+            "test_required": assessment.test_required,
+            "clause": assessment.clause,
+        },
+        "restraints": assessment.restraints,
+    }
+
+
+def build_text_report(results: dict, source_name: str = "signal") -> str:
+    """One-page printable inspection summary (client-approved format)."""
+    report = build_report(results)
+    risk = report["risk"]
+    verdicts = report["verdicts"]
+    overall_pass = all(
+        (verdicts["jerk_b5"]["compliant"],
+         verdicts["dose_b15"]["dose_compliant"],
+         verdicts["dose_b15"]["recovery_compliant"],
+         verdicts["combined_b6"]["compliant"])
+    )
+    line = "-" * 62
+    lines = [
+        "=" * 62,
+        "RideSafe-Bio — Acceleration Safety Inspection Report",
+        f"Standard : {report['standard']}",
+        f"Source   : {source_name}",
+        f"Generated: {report['generated_at']}",
+        line,
+        f"Overall Verdict : "
+        f"{'PASS — COMPLIANT' if overall_pass else 'NON-COMPLIANT'}",
+        f"Risk Level      : {risk['overall_rb']}"
+        f" ({risk['extremity'].upper()} extremity)",
+        f"  acceleration_rb = {risk['acceleration_rb']}"
+        f" | test_required = {risk['test_required']}",
+        f"  {risk['metadata_status']}",
+        line,
+        "Evaluation Criteria:",
+        f"  [{'PASS' if verdicts['jerk_b5']['compliant'] else 'FAIL'}] Jerk B.5"
+        f" — max {verdicts['jerk_b5']['max_jerk_g_per_s']:.2f} g/s"
+        f" (limit {verdicts['jerk_b5']['active_limit_g_per_s']},"
+        f" {verdicts['jerk_b5']['device_class']})",
+        f"  [{'PASS' if verdicts['dose_b15']['dose_compliant'] else 'FAIL'}]"
+        f" Dose B.15 — {verdicts['dose_b15']['total_dose_g_s']:.0f}/"
+        f"{verdicts['dose_b15']['tolerance_g_s']:.0f} g·s,"
+        f" recovery {'PASS' if verdicts['dose_b15']['recovery_compliant'] else 'FAIL'}"
+        f", {verdicts['dose_b15']['impulse_count']} impulses",
+        f"  [{'PASS' if verdicts['combined_b6']['compliant'] else 'FAIL'}]"
+        f" 3D Combined B.6 — max ratio"
+        f" {verdicts['combined_b6']['max_ratio_3d']:.3f}",
+        line,
+        "Active Restraint Requirements:",
+    ]
+    lines += [
+        f"  [{'x' if r['met'] else ' '}] {r['requirement']}"
+        f" ({r['condition']}, {r['clause']})"
+        for r in report["restraints"]
+    ]
+    lines += [line, "Violation Traceability:"]
+    lines += [
+        f"  Jerk B.5: {v['start_s']:.2f}-{v['end_s']:.2f} s"
+        f" peak {v['peak_jerk_g_per_s']:.2f} g/s"
+        for v in verdicts["jerk_b5"]["violations"]
+    ]
+    lines += [
+        f"  3D B.6  : {v['start_s']:.2f}-{v['end_s']:.2f} s"
+        f" peak {v['peak_ratio']:.2f}"
+        for v in verdicts["combined_b6"]["triaxial_violations"]
+    ]
+    if not (verdicts["jerk_b5"]["violations"]
+            or verdicts["combined_b6"]["triaxial_violations"]):
+        lines.append("  (none)")
+    lines += [line, "RideSafe-Bio — auto-generated; ISO 17842-1 prevails."]
+    return "\n".join(lines)
+
+
+def report_file_stem() -> str:
+    """Timestamped file stem: ridesafe_report_YYYYMMDD_HHMM."""
+    from datetime import datetime
+
+    return f"ridesafe_report_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
 
 def plot_time_series(
@@ -572,5 +706,24 @@ def render_dashboard() -> None:
         else:
             st.success("No violations recorded — full traceability table is empty.")
 
+        st.divider()
+        st.markdown("**Export Report**")
+        source_label = st.session_state.get("loaded_path", "uploaded signal")
+        json_report = build_report(results)
+        text_report = build_text_report(results, source_name=source_label)
+        stem = report_file_stem()
+        dl1, dl2 = st.columns(2)
+        dl1.download_button(
+            "📄 Download JSON Report",
+            data=json.dumps(json_report, indent=2, ensure_ascii=False).encode("utf-8"),
+            file_name=f"{stem}.json",
+            mime="application/json",
+        )
+        dl2.download_button(
+            "📝 Download Summary Text",
+            data=text_report.encode("utf-8"),
+            file_name=f"{stem}.txt",
+            mime="text/plain",
+        )
 
 render_dashboard()

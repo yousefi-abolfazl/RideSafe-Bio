@@ -445,26 +445,32 @@
 - **Result / Validation:** ۱۱۴/۱۱۴ کل پروژه (۱۸ تست UI). تست‌ها: رنگ صحیح هر RB در HTML، عدم وجود قرمز FAIL در badge (تفکیک معنایی از classification) — پالت قرمز #b71c1c فقط در banner NON-COMPLIANT. متن PASS/NON-COMPLIANT و fallback خاکستری محورهای غایب آزمون شد. Smoke سرور: HTTP 200 + health ok + صفر Traceback. UI-free بودن src/ حفظ شد (بند ۴).
 
 
-### Task 4.4 — ماژول صدور گزارش نهایی خودکار (Export Report) ⏳ (پلن در انتظار تأیید)
+### Task 4.4 — ماژول صدور گزارش نهایی خودکار (Export Report) ✅
 
 
 
-- **Goal:** تولید گزارش خلاصه‌ی قابل‌حمل برای بازرس میدانی (FR-8): دکمه Export در تب Risk Passport که همه‌ی یافته‌های ارزیابی (حکم، RB، الزامات مهار، نقض‌ها با ردیابی، متادیتای سیگنال) را در یک فایل صادر می‌کند — بدون وابستگی جدید.
+- **Goal:** خروجی دوگانه (تصمیم کارفرما): JSON ساخت‌یافته (منبع حقیقت Technical Passport) + متن خلاصه چاپی یک‌صفحه‌ای — با نام فایل زمان‌دار `ridesafe_report_YYYYMMDD_HHMM` و دکمه‌های دانلود در انتهای تب Risk Passport؛ بدون وابستگی جدید.
 
+- **Checkpoints:**
 
+  - [x] T1 — `build_report(results) -> dict`: report_type/generated_at/standard + signal (fs، n_samples، duration، inversions، mapping) + verdicts (jerk_b5/dose_b15/combined_b6 با بازه‌های ناقض) + risk (acceleration_rb/overall_rb/extremity/test_required) + restraints.
 
-- **Checkpoints (پلن):**
+  - [x] T2 — `build_text_report(results, source_name) -> str`: سربرگ رسمی، Overall Verdict، RB + extremity، سه معیار PASS/FAIL، الزامات `[x]/[ ]`، جدول ردیابی.
 
-  - [ ] T1 — قالب گزارش: **JSON ساخت‌یافته** (منبع حقیقت ماشینی برای آرشیو technical passport) — همه فیلدهای RiskAssessment + verdictهای سه معیار + بازه‌های ناقض + متادیتای سیگنال (fs، تعداد نمونه، واحد، نگاشت، وارونگی) + timestamp + نسخه config.
+  - [x] T3 — `report_file_stem()`: قالب زمانی مصوب + دو `st.download_button` با آیکون (📄 JSON / 📝 Text).
 
-  - [ ] T2 — `build_report(results: dict) -> dict` (تابع خالص در app.py — لایه UI، چون گزارش از خروجی pipeline می‌سازد) + `st.download_button` (JSON) در تب Passport.
+  - [x] T4 — ۷ آزمون جدید (مجموع ۲۵ UI): ساختار، serializability، قطعیت (حذف timestamp)، تطابق فیلدها با موتور، متن شامل حکم/RB، flag شدن NON-COMPLIANT روی data_jerk_violation، الگوی نام فایل.
 
-  - [ ] T3 — (اختیاری در همان پاس) خروجی دوم متنی: `build_text_report(results) -> str` خلاصه یک‌صفحه‌ای ساده (pass/fail lines) برای چاپ سریع.
+  - [x] T5 — Changes/Result + roadmap (✅ ۴.۴، **بستن فاز ۴**) + commit + پوش.
 
-  - [ ] T4 — آزمون: ساختار JSON (کلیدهای الزامی)، قطعیت (دو بار اجرا روی دیتاست ثابت = خروجی یکسان به‌جز timestamp)، صحت مقادیر (RB، شمارش نقض)؛ +smoke سرور.
+- **Changes:**
 
-  - [ ] T5 — Changes/Result + roadmap (✅ ۴.۴ و **بستن فاز ۴**) + commit `feat: ...` + پوش.
+  | فایل | تغییر | دلیل | نتیجه |
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  |---|---|---|---|
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `app.py` | +build_report و build_text_report و report_file_stem + دکمه‌های Export | تسک ۴.۴ + تصمیم‌های کارفرما | +۱۳۵ خط |
+
+  | `tests/test_app.py` | +۷ آزمون گزارش | بند ۷ | ۲۵/۲۵ |
+
+- **Result / Validation:** ۱۲۱/۱۲۱ کل پروژه (۲۵ تست UI). تست قطعیت: دو گزارش از یک دیتاست بجز generated_at برابرند. تست صحت: RB و impulse_count گزارش == خروجی موتور. NON-COMPLIANT + `FAIL] Jerk B.5` در گزارش متنی data_jerk_violation تأیید شد. Smoke سرور: HTTP 200 + health ok + صفر Traceback. UI-free بودن src/ (بند ۴). **فاز ۴ بسته شد.**

@@ -276,3 +276,147 @@ def test_per_axis_table_rows_and_fallback_color():
     none_row = table[table["Axis / Polarity"] == "ax"].iloc[0]
     assert none_row["Risk Level"] == "not evaluated"
     assert none_row["color"] == "#9e9e9e"  # gray fallback
+
+
+# --- Task 4.4: export report builders --------------------------------------------
+
+
+
+import json as _json  # noqa: E402
+
+from app import build_report, build_text_report, report_file_stem  # noqa: E402
+
+
+
+
+
+@pytest.fixture(scope="module")
+
+def safe_results():
+
+    build_all_datasets()
+
+    raw = pd.read_csv("data/data_safe_family.csv")
+
+    from app import CANONICAL, run_evaluation_pipeline
+
+    return run_evaluation_pipeline(
+
+        raw, CANONICAL, 500.0, None,
+
+        {"ax": False, "ay": False, "az": False}, "family",
+
+    )
+
+
+
+
+
+def test_report_structure_required_keys(safe_results):
+
+    report = build_report(safe_results)
+
+    for key in ("report_type", "generated_at", "standard", "signal",
+                "verdicts", "risk", "restraints"):
+
+        assert key in report
+
+    assert report["report_type"] == "ridesafe_bio_assessment"
+
+    for key in ("jerk_b5", "dose_b15", "combined_b6"):
+
+        assert key in report["verdicts"]
+
+    assert report["risk"]["clause"] == "ISO 17929 Table B.1"
+
+
+
+
+
+def test_report_is_json_serializable(safe_results):
+
+    payload = _json.dumps(build_report(safe_results), ensure_ascii=False)
+
+    assert "ridesafe_bio_assessment" in payload
+
+
+
+
+
+def test_report_determinism_excluding_timestamp(safe_results):
+
+    a = build_report(safe_results)
+
+    b = build_report(safe_results)
+
+    a.pop("generated_at"), b.pop("generated_at")
+
+    assert a == b
+
+
+
+
+
+def test_report_field_values_match_engine(safe_results):
+    report = build_report(safe_results)
+    assert report["risk"]["overall_rb"] == report["risk"]["acceleration_rb"]
+    assert (
+        report["verdicts"]["jerk_b5"]["compliant"]
+        == safe_results["jerk_verdict"]["compliant"]
+    )
+    assert (
+        report["verdicts"]["dose_b15"]["impulse_count"]
+        == len(safe_results["impulses"])
+    )
+
+
+
+
+
+def test_text_report_contains_verdict_and_rb(safe_results):
+
+    text = build_text_report(safe_results, source_name="data_safe_family.csv")
+
+    assert "Inspection Report" in text
+
+    assert "PASS — COMPLIANT" in text or "NON-COMPLIANT" in text
+
+    assert "RB-" in text
+
+    assert "Violation Traceability" in text
+
+
+
+
+
+def test_text_report_flags_failure_on_violating_dataset():
+
+    build_all_datasets()
+
+    raw = pd.read_csv("data/data_jerk_violation.csv")
+
+    from app import CANONICAL, run_evaluation_pipeline
+
+    results = run_evaluation_pipeline(
+
+        raw, CANONICAL, 500.0, None,
+
+        {"ax": False, "ay": False, "az": False}, "extreme",
+
+    )
+
+    text = build_text_report(results, source_name="data_jerk_violation.csv")
+
+    assert "NON-COMPLIANT" in text
+
+    assert "FAIL] Jerk B.5" in text
+
+
+
+
+
+def test_report_file_stem_format():
+
+    import re
+
+    assert re.fullmatch(r"ridesafe_report_\d{8}_\d{4}", report_file_stem())
