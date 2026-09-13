@@ -408,3 +408,30 @@
   | `tests/test_app.py` | +۶ آزمون نمودار (ساختار + پرف) | بند ۷ | ۱۵/۱۵ |
 
 - **Result / Validation:** ۱۱۰/۱۱۰ کل پروژه (۱۵ تست UI). vrectها = بازه‌های ناقض واقعی (۲ jerk روی data_jerk_violation)؛ تفکیک ۳بعدی: safe dataset → صفر نقطه قرمز؛ پرف تولید هر دو figure < 1s (تست timeit). رفع باگ حین TDD: key ناهمسان `violation_intervals` (jerk) در برابر `triaxial_violations` (3D). Smoke سرور: HTTP 200 + health ok + صفر Traceback. plotly فقط در app.py — `src/` UI-free (بند ۴).
+
+
+### Task 4.3 — پنل «شناسنامه ریسک و کارنامه ایمنی دستگاه» ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** تبدیل تب Risk Passport به پنل رسمی شناسنامه: Badge رنگی RB-1..RB-4 (سبز→قرمز با متریک extremity)، جدول طبقه‌بندی per-axis، کارت الزامات مهار (V11) با وضعیت برقراری، و بخش هشدارها — منبع داده: RiskAssessment تسک ۳.۴ (FR-4.3).
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — Badge: `render_risk_badge(assessment) -> None` — رنگ زمینه هر RB از `RB_BADGE_COLORS` (config جدید: RB-1 قرمز #d62728 … RB-4 سبز #2ca02c) با `st.markdown` HTML اینلاین (بadge بزرگ + توضیح extremity).
+
+  - [ ] T2 — جدول per-axis: `st.dataframe` از per_axis_levels (سطر: محور/قطبیت، ستون: RB + رنگ شرطی) به‌جای st.json خام.
+
+  - [ ] T3 — کارت الزامات مهار: هر قاعده V11 به‌صورت `st.markdown` با ✅/⬜ + شرط + requirement + clause؛ قواعد met=True قرمز/برجسته (الزام فعال) و بقیه خاکستری.
+
+  - [ ] T4 — بخش هشدارها: هشدار Note 3 (آزمون فیزیکی RB-1/RB-2) + هشدارهای ارزیابی (jerk/3D/dose FAILها) یک‌جا با `st.error/warning`.
+
+  - [ ] T5 — آزمون: توابع خالص جدید (`render_risk_badge` به‌صورت build_html بدون st) — تست رنگ/متن/ساختار HTML؛ + smoke سرور.
+
+  - [ ] T6 — Changes/Result + roadmap + commit `feat: ...` + پوش.
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
