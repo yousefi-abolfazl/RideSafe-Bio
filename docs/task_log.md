@@ -328,28 +328,34 @@
 
 
 
-### Task 4.1 — واسط کاربری Streamlit (بارگذاری + تنظیمات) ⏳ (پلن در انتظار تأیید)
+### Task 4.1 — واسط کاربری Streamlit (بارگذاری + تنظیمات) ✅
 
 
 
-- **Goal:** بازطراحی `app.py` به داشبورد کامل: بارگذاری CSV/TXT یا انتخاب دیتاست سنتتیک با یک کلیک (FR-1) + پنل تنظیمات نگاشت/وارونگی/واحد محورها (FR-2) — با مصرف صرفاً از موتورهای `src/` (بند ۴: تمام رندر فقط در لایه نمایش).
+- **Goal:** بازطراحی `app.py` به داشبورد کامل: بارگذاری CSV/TXT یا انتخاب دیتاست سنتتیک با یک کلیک (FR-1) + پنل تنظیمات نگاشت/وارونگی/واحد محورها (FR-2) — مصرف صرفاً از موتورهای `src/`؛ رابط انگلیسی فنی (تصمیم کارفرما).
 
+- **Checkpoints:**
 
+  - [x] T1 — معماری: sidebar تنظیمات + ۳ تب (Signal/Evaluation/Risk Passport)؛ بدنه اسکریپت در `render_dashboard()` (import-safe برای تست).
 
-- **Checkpoints (پلن):**
+  - [x] T2 — منبع داده: file_uploader CSV/TXT با تشخیص جداکننده (`,`/`;`/tab/`\s+` رجکس) یا انتخاب سنتتیک + دکمه Generate & Load؛ نگاشت پویا از ستون‌های واقعی فایل.
 
-  - [ ] T1 — معماری صفحه: `st.set_page_config` + sidebar تنظیمات (منبع داده، نگاشت ستون‌ها، وارونگی، واحد، fs، کلاس دستگاه) + محتوا در تب‌ها (سیگنال/ارزیابی/شناسنامه).
+  - [x] T3 — کنترل‌ها: وارونگی سه محور، واحد g/m/s² (تبدیل خودکار)، fs خودکار/دستی، کلاس دستگاه → JERK_LIMITS.
 
-  - [ ] T2 — بارگذاری داده: `st.file_uploader` (CSV/TXT با جداکننده تشخیصی) + دکمه‌های انتخاب دیتاست سنتتیک `data/*.csv`؛ تزریق column_mapping از UI به `standardize_signal_frame` (بدون هاردکد نام ستون در src — بند ۵).
+  - [x] T4 — پایپ‌لاین کامل `run_evaluation_pipeline()`: standardize → filter → jerk → impulses → dose → 3D → RB؛ نمایش metricهای PASS/FAIL + هشدار بازه‌های ناقض + transients مستثنی.
 
-  - [ ] T3 — کنترل‌ها: selectbox/checkbox برای وارونگی هر محور، تبدیل واحد m/s²→g، fs خودکار/دستی، کلاس دستگاه (family/general/extreme) برای JERK_LIMITS.
+  - [x] T5 — `tests/test_app.py`: ۹ آزمون توابع خالص (delimiter، mapping، inversion، بارگذاری) — همه پاس.
 
-  - [ ] T4 — اتصال پایپ‌لاین کامل: standardize → filter → jerk → impulses → dose → 3D → RB؛ نمایش خلاصه متنی وضعیت (بدون نمودار — تسک ۴.۲).
+  - [x] T6 — Changes/Result + roadmap + commit `feat: ...` + پوش + smoke.
 
-  - [ ] T5 — `tests/test_app.py` (تست پایتونیِ منطقِ سطح UI): توابع کمکی خالص app.py (تشخیص جداکننده، ساخت mapping، وارونگی) بدون اجرای Streamlit.
+- **Changes:**
 
-  - [ ] T6 — Changes/Result + roadmap + commit `feat: ...` + پوش + smoke اجرای سرور.
+  | فایل | تغییر | دلیل | نتیجه |
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  |---|---|---|---|
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+  | `app.py` | بازطراحی کامل (۱۲KB) | تسک ۴.۱ + تصمیمات کارفرما | UI انگلیسی، import-safe |
+
+  | `tests/test_app.py` | ایجاد — ۹ آزمون | بند ۷ | همه پاس |
+
+- **Result / Validation:** ۱۰۵/۱۰۵ کل پروژه (۹ تست UI). Smoke سرور: `streamlit run app.py` پورت 8601 → HTTP 200 + health `ok` + صفر Traceback در لاگ. رفع باگ حین TDD: `str.split(r"\s+")` در پایتون لایترال است نه رجکس — تشخیص whitespace با `re.split` اصلاح شد (تست مرزی بود و شکست خورد/رفع شد). ساختار import-safe: `render_dashboard()` فقط در اجرای Streamlit صدا زده می‌شود؛ توابع خالص بدون runtime قابل تست‌اند. `src/` همچنان UI-free (بند ۴).

@@ -1,42 +1,318 @@
-# RideSafe-Bio
+"""RideSafe-Bio — Streamlit dashboard (phase 4).
 
-ارزیابی ایمنی شتاب سرنشین وسایل تفریحی بر مبنای **ISO/CD 17929:2026** (اثرات بیومکانیکی) با مقایسه‌ی دونمایی نسبت به **ISO 17842-1:2023 / INSO 8987-1:1403** — داشبورد تحلیلی Streamlit.
+Presentation layer only: all computation lives in src/ modules (project
+convention section 4). UI language: English technical terminology.
+State: st.session_state (client-approved).
+Import-safe: the Streamlit script body runs under render_dashboard();
+pure helpers stay importable for unit tests.
+"""
 
-## راه‌اندازی سریع
+from __future__ import annotations
 
-```bash
-# 1) محیط مجازی
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+import io
 
-# 2) اجرای داشبورد
-.venv/bin/streamlit run app.py
-```
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-## ساختار پروژه
+from src.config import (
+    ACCELERATION_COLUMNS,
+    FILTER_DEFAULTS,
+    JERK_LIMITS,
+    TIME_COLUMN,
+)
+from src.datasets import DATASET_BUILDERS
+from src.iso17929_engine import (
+    calculate_jerk_rate,
+    classify_risk_level,
+    compute_cumulative_dose,
+    detect_impulses,
+    evaluate_3d_combined_inequality,
+    evaluate_jerk_compliance,
+    extract_restraint_requirements,
+)
+from src.preprocessing import (
+    apply_butterworth_lowpass,
+    standardize_signal_frame,
+)
 
-```
-├── data/               # داده‌های سنتتیک و فایل‌های آزمون
-├── docs/               # مستندات مدیریت پروژه
-│   ├── project.md      #   منشور و نیازمندی‌ها
-│   ├── roadmap.md      #   نقشه راه و زمان‌بندی
-│   ├── rules.md        #   قوانین کدنویسی، لایسنس و مراجع
-│   └── task_log.md     #   لاگ روزانه پیشرفت
-├── src/                # سورس‌کد ماژولار
-│   ├── synthetic_gen.py     # (فاز ۲) تولید داده سنتتیک
-│   ├── iso17929_engine.py   # (فاز ۳) موتور ارزیابی استاندارد جدید
-│   ├── iso17842_engine.py   # (فاز ۵) موتور استاندارد مبنا
-│   └── comparator.py        # (فاز ۵) ماتریس مقایسه دو استاندارد
-├── tests/              # آزمون‌های واحد (pytest)
-└── app.py              # برنامه اصلی داشبورد Streamlit
-```
+st.set_page_config(page_title="RideSafe-Bio", page_icon="🎡", layout="wide")
 
-## وضعیت فازها
+CANONICAL = {"time": TIME_COLUMN, "ax": "ax", "ay": "ay", "az": "az"}
 
-- ✅ فاز ۱ — زیرساخت، معماری و مستندسازی
-- ⬜ فاز ۲ — پیش‌پردازش سیگنال و داده‌های آزمون سنتتیک
-- ⬜ فاز ۳ — هسته ISO 17929 (Jerk، پالس/دوز، بیضی سه‌محوره، رده‌بندی RB)
-- ⬜ فاز ۴ — داشبورد تعاملی و گزارش‌گیری
-- ⬜ فاز ۵ — یکپارچگی ISO 17842 و مقایسه دونمایی
 
-جزئیات: [`docs/roadmap.md`](docs/roadmap.md) · قوانین و لایسنس: [`docs/rules.md`](docs/rules.md)
+# --- pure helpers (unit-tested in tests/test_app.py) -----------------------------
+
+
+def detect_delimiter(sample: str) -> str:
+    """Pick the delimiter that yields the most consistent column count."""
+    import re
+
+    candidates = [(",", str.split), (";", str.split), ("\t", str.split),
+                  (r"\s+", lambda line, _: re.split(r"\s+", line))]
+    best, best_score = ",", 0
+    for delim, splitter in candidates:
+        counts = [
+            len(splitter(line.strip(), delim))
+            for line in sample.strip().splitlines()[:10]
+            if line.strip()
+        ]
+        if not counts or min(counts) < 2:
+            continue
+        consistent = len(set(counts)) == 1
+        score = int(consistent) * 1000 + max(counts)
+        if score > best_score:
+            best, best_score = delim, score
+    return best
+
+
+def suggest_default_mapping(columns: list[str]) -> dict[str, str]:
+    """Guess canonical axis mapping from common logger column names."""
+    lowered = [c.lower() for c in columns]
+    return {
+        "time": next((c for c, l in zip(columns, lowered) if l in ("time", "t")), "(none)"),
+        "ax": next((c for c, l in zip(columns, lowered) if l in ("ax", "acc_x", "x")), "(none)"),
+        "ay": next((c for c, l in zip(columns, lowered) if l in ("ay", "acc_y", "y")), "(none)"),
+        "az": next((c for c, l in zip(columns, lowered) if l in ("az", "acc_z", "z")), "(none)"),
+    }
+
+
+def build_column_mapping(user_mapping: dict[str, str]) -> dict[str, str]:
+    """Invert UI selection {canonical: source} for standardize_signal_frame."""
+    mapping = {c: s for c, s in user_mapping.items() if s and s != "(none)"}
+    missing = [c for c in ("time", "ax", "ay", "az") if c not in mapping]
+    if missing:
+        raise ValueError(f"Column mapping incomplete: {missing} not assigned")
+    return mapping
+
+
+def apply_axis_settings(frame: pd.DataFrame, invert: dict[str, bool]) -> pd.DataFrame:
+    """Apply per-axis sign inversion checkboxes on the standardized frame."""
+    out = frame.copy()
+    for axis, flip in invert.items():
+        if flip and axis in out.columns:
+            out[axis] = -out[axis].to_numpy(dtype=float)
+    return out
+
+
+def load_uploaded_file(buffer: io.BytesIO, name: str) -> pd.DataFrame:
+    """Read an uploaded CSV/TXT with delimiter sniffing."""
+    raw = buffer.read()
+    text = raw.decode("utf-8", errors="replace")
+    delim = detect_delimiter(text[:4096])
+    kwargs = {"sep": delim, "engine": "python"} if delim != "," else {}
+    return pd.read_csv(io.StringIO(text), **kwargs)
+
+
+def run_evaluation_pipeline(
+    raw_frame: pd.DataFrame,
+    column_mapping: dict[str, str],
+    sampling_rate: float | None,
+    unit_conversions: dict | None,
+    axis_inversions: dict[str, bool],
+    device_class: str,
+) -> dict:
+    """Standardize → filter → jerk → impulses → dose → 3D → RB."""
+    standardized, metadata = standardize_signal_frame(
+        raw_frame,
+        column_mapping,
+        sampling_rate=sampling_rate,
+        unit_conversions=unit_conversions,
+        axis_inversions=axis_inversions,
+    )
+    fs = metadata["sampling_rate"]
+    filtered = apply_butterworth_lowpass(standardized, CANONICAL, fs, FILTER_DEFAULTS)
+
+    jerk = calculate_jerk_rate(filtered, fs)
+    jerk_verdict = evaluate_jerk_compliance(jerk, axis="az", device_class=device_class)
+
+    impulses = detect_impulses(filtered, axis="az")
+    dose = compute_cumulative_dose(impulses, recovery_signal=filtered)
+    combined = evaluate_3d_combined_inequality(filtered)
+
+    peaks: dict[str, float] = {}
+    for axis in ACCELERATION_COLUMNS:
+        part = filtered[[TIME_COLUMN, axis]]
+        found = detect_impulses(part, axis=axis)
+        positive = max((i.peak_g for i in found if i.sign > 0), default=0.0)
+        negative = max((i.peak_g for i in found if i.sign < 0), default=0.0)
+        if axis in ("ax", "ay"):
+            peaks[axis] = max(positive, negative)  # symmetric rows
+        else:
+            peaks[f"+{axis}"] = positive
+            peaks[f"-{axis}"] = negative
+
+    assessment = classify_risk_level(peaks)
+    assessment.restraints = extract_restraint_requirements(
+        peaks,
+        durations={
+            axis: float(filtered[TIME_COLUMN].iloc[-1] - filtered[TIME_COLUMN].iloc[0])
+            for axis in ACCELERATION_COLUMNS
+        },
+    )
+    return {
+        "fs": fs,
+        "metadata": metadata,
+        "filtered": filtered,
+        "jerk_verdict": jerk_verdict,
+        "impulses": impulses,
+        "dose": dose,
+        "combined": combined,
+        "assessment": assessment,
+        "peaks": peaks,
+    }
+
+
+# --- streamlit script -------------------------------------------------------------
+
+
+def render_dashboard() -> None:
+    """Streamlit script body: settings sidebar + evaluation tabs."""
+    with st.sidebar:
+        st.header("Data Source")
+        source_mode = st.radio("Input", ("Synthetic datasets", "Upload file"))
+
+        raw_frame: pd.DataFrame | None = None
+        if source_mode == "Synthetic datasets":
+            dataset_name = st.selectbox(
+                "Edge-case dataset", sorted(DATASET_BUILDERS), index=0
+            )
+            if st.button("Generate & Load", type="primary"):
+                DATASET_BUILDERS[dataset_name]("data")
+                st.session_state["loaded_path"] = f"data/{dataset_name}"
+            if "loaded_path" in st.session_state:
+                raw_frame = pd.read_csv(st.session_state["loaded_path"])
+                st.caption(f"Loaded: {st.session_state['loaded_path']}")
+        else:
+            upload = st.file_uploader("CSV / TXT", type=("csv", "txt"))
+            if upload is not None:
+                try:
+                    raw_frame = load_uploaded_file(upload, upload.name)
+                    st.caption(f"Loaded: {upload.name} ({len(raw_frame)} rows)")
+                except Exception as exc:  # noqa: BLE001 — surface to operator
+                    st.error(f"Failed to parse file: {exc}")
+
+        st.divider()
+        st.header("Signal Settings")
+        invert = {
+            "ax": st.checkbox("Invert ax"),
+            "ay": st.checkbox("Invert ay"),
+            "az": st.checkbox("Invert az"),
+        }
+        unit_choice = st.selectbox("Input unit", ("g", "m/s²"))
+        fs_mode = st.radio("Sampling rate", ("Auto (from time)", "Manual"))
+        fs_manual = st.number_input(
+            "fs (Hz)", min_value=1.0, value=500.0, step=50.0,
+            disabled=fs_mode != "Manual",
+        )
+        device_class = st.selectbox(
+            "Device class", tuple(JERK_LIMITS), index=1,
+            help="Jerk limit: family 7 / general 10 / extreme 15 g/s (B.5)",
+        )
+
+    st.title("🎡 RideSafe-Bio — Acceleration Safety Assessment")
+    st.caption("ISO/CD 17929:2026 biomechanical evaluation — ISO 17842-1 prevails")
+
+    if raw_frame is None:
+        st.info("Load a dataset or upload a signal file from the sidebar to begin.")
+        return
+
+    st.subheader("Column Mapping")
+    st.caption("Map the uploaded logger columns onto the canonical axes.")
+    columns = ["(none)"] + list(raw_frame.columns)
+    default_map = suggest_default_mapping(list(raw_frame.columns))
+    mapping_selection = {
+        canonical: st.selectbox(
+            canonical, columns, index=columns.index(default_map[canonical])
+        )
+        for canonical in ("time", "ax", "ay", "az")
+    }
+
+    try:
+        column_mapping = build_column_mapping(mapping_selection)
+        sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
+        unit_conversions = (
+            {a: "m/s2_to_g" for a in ACCELERATION_COLUMNS}
+            if unit_choice == "m/s²" else None
+        )
+        results = run_evaluation_pipeline(
+            raw_frame, column_mapping, sampling_rate,
+            unit_conversions, invert, device_class,
+        )
+    except Exception as exc:  # noqa: BLE001 — surface to operator
+        st.error(f"Configuration error: {exc}")
+        return
+
+    metadata = results["metadata"]
+    st.success(
+        f"Signal ready — {len(results['filtered'])} samples @ {results['fs']:.1f} Hz · "
+        f"unit {'m/s²→g' if unit_choice == 'm/s²' else 'g'} · inverted: "
+        f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
+    )
+
+    tab_signal, tab_eval, tab_passport = st.tabs(
+        ["📈 Signal", "🔍 Evaluation", "🎫 Risk Passport"]
+    )
+
+    with tab_signal:
+        st.dataframe(results["filtered"].head(50), use_container_width=True)
+        st.caption("Filtered (4-pole Butterworth 5 Hz single-pass, SOS).")
+
+    with tab_eval:
+        jerk_verdict = results["jerk_verdict"]
+        dose = results["dose"]
+        combined = results["combined"]
+        c1, c2, c3 = st.columns(3)
+        c1.metric(
+            "Max |Jerk| (az)", f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s",
+            f"limit {jerk_verdict['active_limit_g_per_s']} · "
+            f"{'PASS' if jerk_verdict['compliant'] else 'FAIL'}",
+        )
+        c2.metric(
+            "Impulses (az)", len(results["impulses"]),
+            f"dose {dose['total_dose_g_s']:.0f} g·s · "
+            f"{'PASS' if dose['dose_compliant'] else 'FAIL'} · recovery "
+            f"{'PASS' if dose['recovery_compliant'] else 'FAIL'}",
+        )
+        c3.metric(
+            "3D Ratio max", f"{combined['max_ratio_3d']:.3f}",
+            f"{'PASS' if combined['compliant'] else 'FAIL'}",
+        )
+
+        if jerk_verdict["violation_intervals"]:
+            st.warning(
+                f"Jerk (B.5): {len(jerk_verdict['violation_intervals'])} violation "
+                "interval(s) — details in Risk Passport."
+            )
+        if combined["triaxial_violations"]:
+            st.warning(
+                f"3D combined (B.6): {len(combined['triaxial_violations'])} violation "
+                "interval(s)."
+            )
+        for transient in combined["excluded_transients"]:
+            st.caption(
+                f"Excluded transient (B.16): {transient['duration_s']:.3f} s at "
+                f"{transient['start_s']:.2f} s (peak {transient['peak_ratio']:.2f})"
+            )
+
+    with tab_passport:
+        assessment = results["assessment"]
+        st.markdown(f"### Risk Level: **{assessment.overall_rb}** — *{assessment.extremity}*")
+        st.caption(f"{assessment.clause} · {assessment.metadata_status}")
+        if assessment.test_required:
+            st.info(
+                "Note 3 (Table B.1): RB-1/RB-2 amplitudes require physical test "
+                "verification (ASTM F2137 / GOST R 56066-2014) recorded in the "
+                "technical passport."
+            )
+        st.markdown("**Restraint Requirements**")
+        for rule in assessment.restraints:
+            st.checkbox(
+                f"{rule['condition']} → {rule['requirement']} ({rule['clause']})",
+                value=rule["met"], disabled=True,
+            )
+        st.markdown("**Per-Axis Classification**")
+        st.json(assessment.per_axis_levels)
+
+
+render_dashboard()
