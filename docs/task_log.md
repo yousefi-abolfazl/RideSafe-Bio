@@ -443,3 +443,28 @@
   | `tests/test_app.py` | +۴ آزمون پنل | بند ۷ | ۱۸/۱۸ |
 
 - **Result / Validation:** ۱۱۴/۱۱۴ کل پروژه (۱۸ تست UI). تست‌ها: رنگ صحیح هر RB در HTML، عدم وجود قرمز FAIL در badge (تفکیک معنایی از classification) — پالت قرمز #b71c1c فقط در banner NON-COMPLIANT. متن PASS/NON-COMPLIANT و fallback خاکستری محورهای غایب آزمون شد. Smoke سرور: HTTP 200 + health ok + صفر Traceback. UI-free بودن src/ حفظ شد (بند ۴).
+
+
+### Task 4.4 — ماژول صدور گزارش نهایی خودکار (Export Report) ⏳ (پلن در انتظار تأیید)
+
+
+
+- **Goal:** تولید گزارش خلاصه‌ی قابل‌حمل برای بازرس میدانی (FR-8): دکمه Export در تب Risk Passport که همه‌ی یافته‌های ارزیابی (حکم، RB، الزامات مهار، نقض‌ها با ردیابی، متادیتای سیگنال) را در یک فایل صادر می‌کند — بدون وابستگی جدید.
+
+
+
+- **Checkpoints (پلن):**
+
+  - [ ] T1 — قالب گزارش: **JSON ساخت‌یافته** (منبع حقیقت ماشینی برای آرشیو technical passport) — همه فیلدهای RiskAssessment + verdictهای سه معیار + بازه‌های ناقض + متادیتای سیگنال (fs، تعداد نمونه، واحد، نگاشت، وارونگی) + timestamp + نسخه config.
+
+  - [ ] T2 — `build_report(results: dict) -> dict` (تابع خالص در app.py — لایه UI، چون گزارش از خروجی pipeline می‌سازد) + `st.download_button` (JSON) در تب Passport.
+
+  - [ ] T3 — (اختیاری در همان پاس) خروجی دوم متنی: `build_text_report(results) -> str` خلاصه یک‌صفحه‌ای ساده (pass/fail lines) برای چاپ سریع.
+
+  - [ ] T4 — آزمون: ساختار JSON (کلیدهای الزامی)، قطعیت (دو بار اجرا روی دیتاست ثابت = خروجی یکسان به‌جز timestamp)، صحت مقادیر (RB، شمارش نقض)؛ +smoke سرور.
+
+  - [ ] T5 — Changes/Result + roadmap (✅ ۴.۴ و **بستن فاز ۴**) + commit `feat: ...` + پوش.
+
+- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+
+- **Result / Validation:** (پس از اجرا ثبت می‌شود)
