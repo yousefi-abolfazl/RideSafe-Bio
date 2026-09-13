@@ -94,6 +94,102 @@ def apply_axis_settings(frame: pd.DataFrame, invert: dict[str, bool]) -> pd.Data
             out[axis] = -out[axis].to_numpy(dtype=float)
     return out
 
+def plot_time_series(
+    filtered: pd.DataFrame,
+    jerk_verdict: dict,
+    combined: dict,
+) -> "go.Figure":
+    """Interactive 3-axis time series with red shading over violation runs."""
+    import plotly.graph_objects as go
+
+    fig = go.Figure()
+    colors = {"ax": "#1f77b4", "ay": "#2ca02c", "az": "#9467bd"}
+    for axis in ACCELERATION_COLUMNS:
+        fig.add_trace(go.Scattergl(
+            x=filtered[TIME_COLUMN], y=filtered[axis],
+            mode="lines", name=axis, line=dict(color=colors[axis], width=1),
+        ))
+
+    for verdict, label, key in (
+        (jerk_verdict, "Jerk violation (B.5)", "violation_intervals"),
+        (combined, "3D ratio violation (B.6)", "triaxial_violations"),
+    ):
+        for i, interval in enumerate(verdict[key]):
+            fig.add_vrect(
+                x0=interval["start_s"], x1=interval["end_s"],
+                fillcolor="rgba(255,0,0,0.15)", line_width=0,
+                annotation_text=f"{label} #{i + 1}",
+                annotation_position="top left",
+                annotation_font_size=10,
+            )
+    for i, transient in enumerate(combined["excluded_transients"]):
+        fig.add_vrect(
+            x0=transient["start_s"], x1=transient["end_s"],
+            fillcolor="rgba(128,128,128,0.15)", line_width=0,
+            annotation_text=f"excluded #{i + 1}",
+            annotation_position="bottom left", annotation_font_size=9,
+        )
+    fig.update_layout(
+        xaxis_title="time (s)", yaxis_title="acceleration (g)",
+        height=420, margin=dict(l=40, r=20, t=30, b=30), legend_orientation="h",
+    )
+    return fig
+
+
+def plot_3d_ellipsoid(
+    filtered: pd.DataFrame,
+    combined: dict,
+    max_points: int = 8000,
+) -> "go.Figure":
+    """3D scatter of the acceleration vector vs the B.6 ellipsoid surface."""
+    import plotly.graph_objects as go
+
+    ratios = combined["sample_ratios"]
+    stride = max(int(np.ceil(len(filtered) / max_points)), 1)
+    ax = filtered["ax"].to_numpy()[::stride]
+    ay = filtered["ay"].to_numpy()[::stride]
+    az = filtered["az"].to_numpy()[::stride]
+    ratio = ratios["ratio_3d"].to_numpy()[::stride]
+
+    inside = ratio <= 1.0
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(
+        x=ax[inside], y=ay[inside], z=az[inside],
+        mode="markers", name="inside (safe)",
+        marker=dict(size=2.5, color="rgba(44,160,44,0.55)",
+                    colorbar=None),
+    ))
+    fig.add_trace(go.Scatter3d(
+        x=ax[~inside], y=ay[~inside], z=az[~inside],
+        mode="markers", name="outside (violation)",
+        marker=dict(size=3.5, color="rgba(214,39,40,0.85)", symbol="x"),
+    ))
+
+    # unit-sphere surface scaled by the per-sample adm along the full grid
+    adm_x = combined["_adm_x"]
+    adm_y = combined["_adm_y"]
+    adm_z = combined["_adm_z"]
+    mid = len(filtered) // 2
+    scale_x, scale_y, scale_z = adm_x[mid], adm_y[mid], adm_z[mid]
+    u = np.linspace(0, 2 * np.pi, 36)
+    v = np.linspace(0, np.pi, 18)
+    xs = scale_x * np.outer(np.cos(u), np.sin(v))
+    ys = scale_y * np.outer(np.sin(u), np.sin(v))
+    zs = scale_z * np.outer(np.ones_like(u), np.cos(v))
+    fig.add_trace(go.Mesh3d(
+        x=xs.ravel(), y=ys.ravel(), z=zs.ravel(),
+        opacity=0.25, color="#1f77b4", name="B.6 envelope",
+        hoverinfo="name",
+    ))
+    fig.update_layout(
+        scene=dict(
+            xaxis_title="ax (g)", yaxis_title="ay (g)", zaxis_title="az (g)",
+        ),
+        height=520, margin=dict(l=0, r=0, t=20, b=0),
+        legend_orientation="h",
+    )
+    return fig
+
 
 def load_uploaded_file(buffer: io.BytesIO, name: str) -> pd.DataFrame:
     """Read an uploaded CSV/TXT with delimiter sniffing."""
@@ -129,6 +225,26 @@ def run_evaluation_pipeline(
     impulses = detect_impulses(filtered, axis="az")
     dose = compute_cumulative_dose(impulses, recovery_signal=filtered)
     combined = evaluate_3d_combined_inequality(filtered)
+
+    from src.iso17929_engine import _exposure, lookup_adm
+
+    time_values = filtered[TIME_COLUMN].to_numpy(dtype=float)
+    adm_x_arr = np.array([
+        lookup_adm("x", 1 if v >= 0 else -1, d)
+        for v, d in zip(filtered["ax"].to_numpy(dtype=float),
+                        _exposure(None, np.abs(filtered["ax"].to_numpy(dtype=float)),
+                                  time_values))
+    ])
+    adm_y_arr = np.full(len(filtered), lookup_adm("y", 1, 1.0))
+    adm_z_arr = np.array([
+        lookup_adm("z", 1 if v >= 0 else -1, d)
+        for v, d in zip(filtered["az"].to_numpy(dtype=float),
+                        _exposure(None, np.abs(filtered["az"].to_numpy(dtype=float)),
+                                  time_values))
+    ])
+    combined["_adm_x"] = adm_x_arr
+    combined["_adm_y"] = adm_y_arr
+    combined["_adm_z"] = adm_z_arr
 
     peaks: dict[str, float] = {}
     for axis in ACCELERATION_COLUMNS:
@@ -255,8 +371,27 @@ def render_dashboard() -> None:
     )
 
     with tab_signal:
-        st.dataframe(results["filtered"].head(50), use_container_width=True)
-        st.caption("Filtered (4-pole Butterworth 5 Hz single-pass, SOS).")
+        filtered = results["filtered"]
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Peak ax", f"{filtered['ax'].abs().max():.2f} g")
+        m2.metric("Peak ay", f"{filtered['ay'].abs().max():.2f} g")
+        m3.metric("Peak az", f"{filtered['az'].abs().max():.2f} g")
+        m4.metric(
+            "Total Duration",
+            f"{filtered[TIME_COLUMN].iloc[-1] - filtered[TIME_COLUMN].iloc[0]:.2f} s",
+        )
+        st.plotly_chart(
+            plot_time_series(filtered, results["jerk_verdict"], results["combined"]),
+            use_container_width=True,
+        )
+        st.dataframe(filtered, use_container_width=True, height=300)
+        st.caption("Filtered (4-pole Butterworth 5 Hz single-pass, SOS) — full dataset.")
+        st.download_button(
+            "Download filtered CSV",
+            data=filtered.to_csv(index=False).encode("utf-8"),
+            file_name="ridesafe_filtered_signal.csv",
+            mime="text/csv",
+        )
 
     with tab_eval:
         jerk_verdict = results["jerk_verdict"]
@@ -294,6 +429,13 @@ def render_dashboard() -> None:
                 f"Excluded transient (B.16): {transient['duration_s']:.3f} s at "
                 f"{transient['start_s']:.2f} s (peak {transient['peak_ratio']:.2f})"
             )
+        st.plotly_chart(
+            plot_3d_ellipsoid(results["filtered"], combined),
+            use_container_width=True,
+        )
+        st.caption(
+            "Acceleration vector vs the B.6 ellipsoid (green: inside, red x: outside)."
+        )
 
     with tab_passport:
         assessment = results["assessment"]

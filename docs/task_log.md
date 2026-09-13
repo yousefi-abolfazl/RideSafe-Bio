@@ -361,42 +361,50 @@
 - **Result / Validation:** ۱۰۵/۱۰۵ کل پروژه (۹ تست UI). Smoke سرور: `streamlit run app.py` پورت 8601 → HTTP 200 + health `ok` + صفر Traceback در لاگ. رفع باگ حین TDD: `str.split(r"\s+")` در پایتون لایترال است نه رجکس — تشخیص whitespace با `re.split` اصلاح شد (تست مرزی بود و شکست خورد/رفع شد). ساختار import-safe: `render_dashboard()` فقط در اجرای Streamlit صدا زده می‌شود؛ توابع خالص بدون runtime قابل تست‌اند. `src/` همچنان UI-free (بند ۴).
 
 
-### UX Fix — تب Signal (بازخورد کارفرما) ⏳
+### UX Fix — تب Signal (بازخورد کارفرما) ✅
 
 
 
-- **Goal:** رفع سردرگمی نمایش ۵۰ سطر صفرِ ابتدای سیگنال.
+- **Goal:** رفع سردرگمی نمایش ۵۰ سطر صفر اول (سیگنال‌های با سکون ابتدایی) و فراهم‌سازی دانلود کامل.
 
 - **Checkpoints:**
 
-  - [ ] U1 — `st.dataframe` کل دیتای فیلترشده (virtualized) به‌جای head(50).
+  - [x] U1 — `st.dataframe` با کل دیتای فیلترشده (virtualization داخلی Streamlit).
 
-  - [ ] U2 — کارت‌های خلاصه: Peak ax/ay/az + مدت کل سیگنال بالای تب Signal.
+  - [x] U2 — ۴ کارت خلاصه بالای تب Signal: Peak ax/ay/az + Total Duration.
 
-  - [ ] U3 — `st.download_button` برای CSV کامل فیلترشده.
+  - [x] U3 — `st.download_button` برای CSV کامل فیلترشده.
 
-
-
-### Task 4.2 — نمودارهای تعاملی Plotly ⏳ (پلن در انتظار تأیید)
+- **Result / Validation:** بازخورد بصری کارفرما اعمال شد؛ دانلود دیگر محدود به ۵۰ سطر صفر نیست.
 
 
 
-- **Goal:** مصورسازی دینامیکی (FR-4.2): (۱) سری زمانی سه‌محوره با سایه‌زنی قرمز بازه‌های ناقض (Jerk B.5 + بیضی B.6)؛ (۲) پراکندگی ۳بعدی بردار شتاب در برابر بیضی استاندارد B.6 با تفکیک رنگی داخل/خارج (سبز/قرمز) — رندر زیر ۱ ثانیه.
+### Task 4.2 — نمودارهای تعاملی Plotly ✅
 
 
 
-- **Checkpoints (پلن):**
+- **Goal:** سری زمانی تعاملی سه‌محوره با سایه‌زنی قرمز بازه‌های ناقض (B.5/B.6) + پراکندگی ۳بعدی بردار شتاب در برابر بیضی B.6 با تفکیک سبز/قرمز — رندر زیر ۱ ثانیه.
 
-  - [ ] T1 — `plot_time_series(filtered, jerk_verdict, combined) -> go.Figure`: سه trace + vrect برای هر بازه ناقض (جدا Jerk/3D با رنگ قرمز نیمه‌شفاف) + transients مستثنی با خاکستری.
+- **Checkpoints:**
 
-  - [ ] T2 — `plot_3d_ellipsoid(filtered, combined) -> go.Figure`: Scatter3d دو‌گروهی (داخل/خارج بیضی بر اساس ratio_3d ≤ 1) + سطح بیضی (Mesh3d از نقاط نمونه‌برداری واحد adm لحظه‌ای).
+  - [x] T1 — `plot_time_series`: ۳ trace (Scattergl برای پرف) + vrect قرمز نیمه‌شفاف به‌ازای هر بازه ناقض Jerk/3D + خاکستری برای transients مستثنی B.16.
 
-  - [ ] T3 — اتصال به تب‌ها: Signal → نمودار سری زمانی؛ Evaluation → نمودار ۳بعدی؛ بودجه رندر: lim هر trace با downsample هوشمند (هر n-ام نمونه اگر > 20k).
+  - [x] T2 — `plot_3d_ellipsoid`: Scatter3d دوگروهی سبز (داخل) / قرمز × (خارج) + Mesh3d سطح بیضی با adm per-sample (midpoint) + downsample هوشمند به 8000 نقطه.
 
-  - [ ] T4 — آزمون‌ها: شکل‌ها (تعداد trace، تعداد vrect معادل بازه‌ها، بُعد Scatter3d) بدون نیاز به رندر مرورگر؛ پرف: زمان تولید هر figure < 1s.
+  - [x] T3 — اتصال: Signal → سری زمانی؛ Evaluation → ۳بعدی.
 
-  - [ ] T5 — Changes/Result + roadmap + commit `feat: ...` + پوش + smoke سرور.
+  - [x] T4 — ۶ آزمون ساختار/پرف — همه پاس.
 
-- **Changes:** (پس از پیاده‌سازی تکمیل می‌شود)
+  - [x] T5 — Changes/Result + roadmap + commit `feat: ...` + پوش + smoke سرور.
 
-- **Result / Validation:** (پس از اجرا ثبت می‌شود)
+- **Changes:**
+
+  | فایل | تغییر | دلیل | نتیجه |
+
+  |---|---|---|---|
+
+  | `app.py` | +plot_time_series و plot_3d_ellipsoid و adm exposure در pipeline + UX fix تب Signal | تسک ۴.۲ + بازخورد UX | +۲۰۰ خط |
+
+  | `tests/test_app.py` | +۶ آزمون نمودار (ساختار + پرف) | بند ۷ | ۱۵/۱۵ |
+
+- **Result / Validation:** ۱۱۰/۱۱۰ کل پروژه (۱۵ تست UI). vrectها = بازه‌های ناقض واقعی (۲ jerk روی data_jerk_violation)؛ تفکیک ۳بعدی: safe dataset → صفر نقطه قرمز؛ پرف تولید هر دو figure < 1s (تست timeit). رفع باگ حین TDD: key ناهمسان `violation_intervals` (jerk) در برابر `triaxial_violations` (3D). Smoke سرور: HTTP 200 + health ok + صفر Traceback. plotly فقط در app.py — `src/` UI-free (بند ۴).

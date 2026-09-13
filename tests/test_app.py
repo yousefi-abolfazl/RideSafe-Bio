@@ -74,3 +74,142 @@ def test_load_uploaded_file_semicolon_txt(tmp_path):
     buffer = io.BytesIO(path.read_bytes())
     frame = load_uploaded_file(buffer, "sample.txt")
     assert list(frame.columns) == ["time", "ax", "ay", "az"]
+
+
+# --- Task 4.2: plotly charts (structure + performance, no browser) ---------------
+
+
+
+from src.datasets import build_all_datasets  # noqa: E402
+
+from src.iso17929_engine import (  # noqa: E402
+
+    calculate_jerk_rate,
+    evaluate_3d_combined_inequality,
+    evaluate_jerk_compliance,
+)
+from src.preprocessing import apply_butterworth_lowpass  # noqa: E402
+from app import plot_3d_ellipsoid, plot_time_series  # noqa: E402
+
+
+
+FS = 500.0
+CANONICAL = {"time": "time", "ax": "ax", "ay": "ay", "az": "az"}
+
+
+
+@pytest.fixture(scope="module")
+
+def jerk_dataset_results():
+
+    build_all_datasets()
+
+    filtered = apply_butterworth_lowpass(
+        pd.read_csv("data/data_jerk_violation.csv"), CANONICAL, FS
+    )
+    jerk = evaluate_jerk_compliance(
+        calculate_jerk_rate(filtered, FS), axis="az", device_class="extreme"
+    )
+    combined = evaluate_3d_combined_inequality(filtered)
+    combined["_adm_x"] = np.full(len(filtered), 5.0)
+    combined["_adm_y"] = np.full(len(filtered), 2.0)
+    combined["_adm_z"] = np.full(len(filtered), 6.0)
+    return filtered, jerk, combined
+
+
+
+
+
+def test_time_series_structure(jerk_dataset_results):
+
+    filtered, jerk_verdict, combined = jerk_dataset_results
+
+    fig = plot_time_series(filtered, jerk_verdict, combined)
+
+    scatter_traces = [t for t in fig.data if t.type in ("scatter", "scattergl")]
+    assert len(scatter_traces) == 3  # ax, ay, az
+
+    shapes = list(fig.layout.shapes)
+    assert len(shapes) == len(jerk_verdict["violation_intervals"]) \
+        + len(combined["triaxial_violations"]) \
+        + len(combined["excluded_transients"])
+
+
+
+
+
+def test_time_series_vrects_on_jerk_dataset(jerk_dataset_results):
+
+    filtered, jerk_verdict, combined = jerk_dataset_results
+
+    fig = plot_time_series(filtered, jerk_verdict, combined)
+
+    red_shapes = [s for s in fig.layout.shapes
+                  if s.fillcolor == "rgba(255,0,0,0.15)"]
+    assert len(red_shapes) >= 2  # rise + fall jerk violations
+    for shape in red_shapes:
+        assert shape.x0 < shape.x1
+
+
+
+
+
+def test_3d_scatter_color_split(jerk_dataset_results):
+
+    filtered, _, combined = jerk_dataset_results
+
+    fig = plot_3d_ellipsoid(filtered, combined)
+
+    scatters = [t for t in fig.data if t.type == "scatter3d"]
+
+    assert len(scatters) == 2  # inside (safe) + outside (violation)
+
+    assert scatters[0].name == "inside (safe)"
+
+    assert scatters[1].name == "outside (violation)"
+
+    mesh = [t for t in fig.data if t.type == "mesh3d"]
+
+    assert len(mesh) == 1  # envelope surface
+
+
+
+
+
+def test_3d_no_violation_points_on_safe_data():
+
+    build_all_datasets()
+
+    filtered = apply_butterworth_lowpass(
+        pd.read_csv("data/data_safe_family.csv"), CANONICAL, FS
+
+    )
+    combined = evaluate_3d_combined_inequality(filtered)
+
+    combined["_adm_x"] = np.full(len(filtered), 5.0)
+    combined["_adm_y"] = np.full(len(filtered), 2.0)
+    combined["_adm_z"] = np.full(len(filtered), 6.0)
+
+    fig = plot_3d_ellipsoid(filtered, combined)
+
+    inside, outside = fig.data[0], fig.data[1]
+
+    assert len(inside.x) > 0
+    assert len(outside.x) == 0  # safe dataset: nothing outside the envelope
+
+
+
+
+
+def test_chart_render_time_under_one_second(jerk_dataset_results):
+
+    import time
+
+    filtered, jerk_verdict, combined = jerk_dataset_results
+
+    start = time.perf_counter()
+    plot_time_series(filtered, jerk_verdict, combined)
+    plot_3d_ellipsoid(filtered, combined)
+
+    elapsed = time.perf_counter() - start
+    assert elapsed < 1.0, f"chart generation took {elapsed:.3f} s"
