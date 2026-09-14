@@ -4,7 +4,7 @@
 > قالب هر تسک: Goal / Checkpoints / Changes / Result-Validation.
 > نشانگرها: ✅ اعتبارسنجی‌شده · ⏳ معلق (تأیید استاد / نسخه استاندارد / سورس قبلی).
 
-**آخرین بازنگری:** 2026-09-08
+**آخرین بازنگری:** 2026-09-14
 
 ---
 
@@ -474,3 +474,20 @@
   | `tests/test_app.py` | +۷ آزمون گزارش | بند ۷ | ۲۵/۲۵ |
 
 - **Result / Validation:** ۱۲۱/۱۲۱ کل پروژه (۲۵ تست UI). تست قطعیت: دو گزارش از یک دیتاست بجز generated_at برابرند. تست صحت: RB و impulse_count گزارش == خروجی موتور. NON-COMPLIANT + `FAIL] Jerk B.5` در گزارش متنی data_jerk_violation تأیید شد. Smoke سرور: HTTP 200 + health ok + صفر Traceback. UI-free بودن src/ (بند ۴). **فاز ۴ بسته شد.**
+
+### Task 4.5 — Axis Convention guide figure ✅
+
+- **Goal:** راهنمای تصویری دو پنل دوبعدی (Top X/Y + Side X/Z) بالای تب‌ها در `st.expander` با لیبل‌های انگلیسی و کپشن placement/invert؛ بدون تغییر `src/` و بدون وابستگی جدید.
+- **Checkpoints:**
+  - [x] T001 — branch `chatbox/axis-guide-4.5` + baseline ۱۲۱/۱۲۱
+  - [x] T004 — `tests/test_axis_guide.py` (failing-first: ۵ fail / ۱ pass، فقط src UI-free سبز)
+  - [x] T005/T006 — `assets/axis_guide.svg` (دو پنل X/Y + X/Z، لیبل‌های FR-004) + expander بالای تب‌ها با first-visit flag و fallback متنی
+  - [x] T007 — ۶/۶ سبز؛ T008/T009 — caption سه‌اتمی (placement + Invert + sign-flips)؛ T010/T011 — رنگ‌های ColorContract
+  - [x] T012 — suite کامل ۱۲۷/۱۲۷؛ T013 — smoke روی 8511 (HTTP 200، صفر Traceback)؛ T014 — viewport باریک 480px بدون clipping + sharpness زوم
+- **Changes:**
+  | فایل | تغییر | دلیل | نتیجه |
+  |---|---|---|---|
+  | `assets/axis_guide.svg` | ایجاد (دو پنل تخت X/Y + X/Z، شش پیکان، لیبل‌های دقیق انگلیسی) | تسک ۴.۵ (US1/US3) | ۷۹۶۵ بایت، self-contained |
+  | `app.py` | +ثابت‌ها و دو helper خالص (`load_axis_guide_svg`، `build_axis_guide_fallback_markdown`) + بلاک expander بین title و tabs | تسک ۴.۵ (US1/US2) | رندر inline SVG + fallback + caption |
+  | `tests/test_axis_guide.py` | ایجاد (۶ آزمون: asset/XML، توکن‌ها، body-feel، wiring، رنگ‌های ممنوعه، UI-free بودن src) | بند ۷ + FR-009 | ۶/۶ سبز |
+- **Result / Validation:** ۱۲۷/۱۲۷ کل پروژه (۱۲۱ baseline + ۶ جدید). رندر زنده تأیید شد: expander بازشونده بالای تب‌ها، SVG واقعی ۸۷۱×۵۶۹ در DOM، caption با هر سه اتم، viewport باریک ۴۱۴px بدون clipping. Smoke: HTTP 200 روی 8511 + صفر Traceback در لاگ. `src/` دست‌نخورده (بند ۴).

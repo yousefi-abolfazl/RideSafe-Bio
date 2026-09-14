@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 760" width="100%" role="img" aria-label="Axis convention guide: top view of X and Y directions, side view of Z directions" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="mXpos" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1e3a5f"/>
+    </marker>
+    <marker id="mXneg" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto">
+      <path d="M1,1 L8,4.5 L1,8 z" fill="#ffffff" stroke="#3b82c4" stroke-width="1.6"/>
+    </marker>
+    <marker id="mYpos" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#0f766e"/>
+    </marker>
+    <marker id="mYneg" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto">
+      <path d="M1,1 L8,4.5 L1,8 z" fill="#ffffff" stroke="#14b8a6" stroke-width="1.6"/>
+    </marker>
+    <marker id="mZpos" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5b4fa6"/>
+    </marker>
+    <marker id="mZneg" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto">
+      <path d="M1,1 L8,4.5 L1,8 z" fill="#ffffff" stroke="#a78bfa" stroke-width="1.6"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1040" height="760" rx="14" fill="#f7f9fc"/>
+
+  <!-- ============ LEFT: Top view (X/Y plane) ============ -->
+  <rect x="16" y="16" width="504" height="728" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="268" y="48" text-anchor="middle" font-size="17" font-weight="700" fill="#334155">Top view — X / Y plane</text>
+  <text x="268" y="67" text-anchor="middle" font-size="12" fill="#64748b">vehicle seen from above · forward points up</text>
+  </g>
+
+  <!-- vehicle outline -->
+  <rect x="176" y="100" width="184" height="330" rx="60" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="220" y="114" width="96" height="16" rx="8" fill="#cbd5e1"/>
+
+  <!-- seat -->
+  <rect x="223" y="244" width="90" height="108" rx="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <!-- seated rider seen from above -->
+  <ellipse cx="268" cy="315" rx="30" ry="17" fill="#94a3b8"/>
+  <circle cx="268" cy="270" r="20" fill="#94a3b8"/>
+  <circle cx="268" cy="270" r="9" fill="#e2e8f0"/>
+
+  <!-- +X Forward (solid) -->
+  <line x1="268" y1="232" x2="268" y2="150" stroke="#1e3a5f" stroke-width="5" stroke-linecap="round" marker-end="url(#mXpos)"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="238" y="176" text-anchor="end" font-size="15" font-weight="700" fill="#1e3a5f">+X · Forward</text>
+  <text x="238" y="194" text-anchor="end" font-size="12" fill="#475569">pressed into backrest</text>
+  </g>
+
+  <!-- -X Rearward (hollow, dashed) -->
+  <line x1="268" y1="360" x2="268" y2="412" stroke="#3b82c4" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 6" marker-end="url(#mXneg)"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="298" y="390" font-size="14" font-weight="700" fill="#1e3a5f">-X · Rearward / Braking</text>
+  <text x="298" y="408" font-size="12" fill="#475569">thrown forward vs restraint</text>
+  </g>
+
+  <!-- +Y Right (solid) -->
+  <line x1="322" y1="298" x2="392" y2="298" stroke="#0f766e" stroke-width="5" stroke-linecap="round" marker-end="url(#mYpos)"/>
+  <!-- -Y Left (hollow, dashed) -->
+  <line x1="214" y1="298" x2="144" y2="298" stroke="#14b8a6" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 6" marker-end="url(#mYneg)"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="357" y="278" text-anchor="middle" font-size="13" font-weight="700" fill="#0f766e">+Y · Right</text>
+  <text x="179" y="278" text-anchor="middle" font-size="13" font-weight="700" fill="#0f766e">-Y · Left</text>
+  </g>
+
+  <!-- legend -->
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="56" y="479" font-size="12" fill="#334155">+X · Forward — pressed into backrest</text>
+  <text x="56" y="503" font-size="12" fill="#334155">-X · Rearward / Braking — thrown forward vs restraint</text>
+  <text x="56" y="527" font-size="12" fill="#334155">±Y (+Y / -Y) · Right / Left (symmetric) — pressed sideways</text>
+  <text x="268" y="566" text-anchor="middle" font-size="12" fill="#64748b">solid filled arrow = positive · hollow dashed arrow = negative</text>
+  <text x="268" y="588" text-anchor="middle" font-size="12" fill="#64748b">X family: navy / blues · Y family: teals</text>
+  </g>
+  <circle cx="40" cy="474" r="6" fill="#1e3a5f"/>
+  <circle cx="40" cy="498" r="6" fill="#ffffff" stroke="#3b82c4" stroke-width="2"/>
+  <circle cx="40" cy="522" r="6" fill="#0f766e"/>
+
+  <!-- ============ RIGHT: Side view (X/Z plane) ============ -->
+  <rect x="548" y="16" width="476" height="728" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="786" y="48" text-anchor="middle" font-size="17" font-weight="700" fill="#334155">Side view — X / Z plane</text>
+  <text x="786" y="67" text-anchor="middle" font-size="12" fill="#64748b">seat seen from the side · up points up</text>
+  </g>
+
+  <!-- ground + seat pedestal -->
+  <line x1="586" y1="420" x2="826" y2="420" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+  <rect x="686" y="364" width="16" height="42" fill="#cbd5e1"/>
+  <rect x="644" y="404" width="100" height="10" rx="5" fill="#cbd5e1"/>
+
+  <!-- seat profile -->
+  <rect x="620" y="208" width="26" height="140" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="620" y="338" width="170" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+
+  <!-- small seated rider -->
+  <rect x="646" y="228" width="36" height="112" rx="14" fill="#94a3b8"/>
+  <circle cx="664" cy="206" r="20" fill="#94a3b8"/>
+  <circle cx="664" cy="206" r="9" fill="#e2e8f0"/>
+  <rect x="680" y="314" width="72" height="22" rx="11" fill="#94a3b8"/>
+  <rect x="732" y="314" width="20" height="66" rx="9" fill="#94a3b8"/>
+
+  <!-- +Z Up (solid) -->
+  <line x1="840" y1="326" x2="840" y2="204" stroke="#5b4fa6" stroke-width="5" stroke-linecap="round" marker-end="url(#mZpos)"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="864" y="254" font-size="15" font-weight="700" fill="#5b4fa6">+Z · Up</text>
+  <text x="864" y="272" font-size="12" fill="#475569">pressed into seat</text>
+  <text x="864" y="288" font-size="12" fill="#475569">(heavier)</text>
+  </g>
+
+  <!-- -Z Down (hollow, dashed) -->
+  <line x1="840" y1="352" x2="840" y2="444" stroke="#a78bfa" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 6" marker-end="url(#mZneg)"/>
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="864" y="406" font-size="15" font-weight="700" fill="#5b4fa6">-Z · Down</text>
+  <text x="864" y="424" font-size="12" fill="#475569">airtime / lift-off risk</text>
+  </g>
+
+  <!-- legend -->
+  <g paint-order="stroke" stroke="#ffffff" stroke-width="4" stroke-linejoin="round">
+  <text x="588" y="509" font-size="12" fill="#334155">+Z · Up — pressed into seat (heavier)</text>
+  <text x="588" y="533" font-size="12" fill="#334155">-Z · Down — airtime / lift-off risk</text>
+  <text x="786" y="572" text-anchor="middle" font-size="12" fill="#64748b">solid filled arrow = positive · hollow dashed arrow = negative</text>
+  <text x="786" y="594" text-anchor="middle" font-size="12" fill="#64748b">Z family: purples</text>
+  </g>
+  <circle cx="572" cy="504" r="6" fill="#5b4fa6"/>
+  <circle cx="572" cy="528" r="6" fill="#ffffff" stroke="#a78bfa" stroke-width="2"/>
+</svg>

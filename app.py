@@ -9,6 +9,7 @@ pure helpers stay importable for unit tests.
 
 import io
 import json
+from pathlib import Path
 
 
 import numpy as np
@@ -38,8 +39,36 @@ from src.preprocessing import (
 )
 
 st.set_page_config(page_title="RideSafe-Bio", page_icon="🎡", layout="wide")
-
 CANONICAL = {"time": TIME_COLUMN, "ax": "ax", "ay": "ay", "az": "az"}
+
+AXIS_GUIDE_PATH = Path(__file__).resolve().parent / "assets" / "axis_guide.svg"
+AXIS_GUIDE_TITLE = "🧭 Axis Convention — how to read directions"
+AXIS_GUIDE_FALLBACK_LINES = (
+    "+X | Forward | pressed into backrest",
+    "-X | Rearward / Braking | thrown forward vs restraint",
+    "±Y (+Y / -Y) | Right / Left (symmetric) | pressed sideways",
+    "+Z | Up | pressed into seat (heavier)",
+    "-Z | Down | airtime / lift-off risk",
+)
+AXIS_GUIDE_CAPTION = (
+    "Sensor is seat-mounted near the rider torso/heart. "
+    "If the sensor is mounted reversed, use the Invert checkboxes "
+    "in the sidebar — arrow meanings stay the same, "
+    "only the signal sign flips."
+)
+
+
+def load_axis_guide_svg() -> str | None:
+    """Read assets/axis_guide.svg; None when missing/unreadable."""
+    try:
+        return AXIS_GUIDE_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def build_axis_guide_fallback_markdown() -> str:
+    """Text-only direction summary when the SVG asset is unavailable."""
+    return "\n".join(f"- {line}" for line in AXIS_GUIDE_FALLBACK_LINES)
 
 
 # --- pure helpers (unit-tested in tests/test_app.py) -----------------------------
@@ -509,6 +538,19 @@ def render_dashboard() -> None:
 
     st.title("🎡 RideSafe-Bio — Acceleration Safety Assessment")
     st.caption("ISO/CD 17929:2026 biomechanical evaluation — ISO 17842-1 prevails")
+
+    if "axis_guide_seen" not in st.session_state:
+        st.session_state["axis_guide_seen"] = True
+        guide_open = True
+    else:
+        guide_open = False
+    with st.expander(AXIS_GUIDE_TITLE, expanded=guide_open):
+        guide_svg = load_axis_guide_svg()
+        if guide_svg is not None:
+            st.markdown(guide_svg, unsafe_allow_html=True)
+        else:
+            st.markdown(build_axis_guide_fallback_markdown())
+        st.caption(AXIS_GUIDE_CAPTION)
 
     if raw_frame is None:
         st.info("Load a dataset or upload a signal file from the sidebar to begin.")
