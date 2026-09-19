@@ -462,9 +462,9 @@ def run_evaluation_pipeline(
         found = detect_impulses(part, axis=axis)
         positive = max((i.peak_g for i in found if i.sign > 0), default=0.0)
         negative = max((i.peak_g for i in found if i.sign < 0), default=0.0)
-        if axis in ("ax", "ay"):
-            peaks[axis] = max(positive, negative)  # symmetric rows
-        else:
+        peaks[axis] = max(positive, negative)  # magnitude row (ax/ay tables symmetric)
+        if axis in ("ax", "az"):
+            # polarity keys: -ax drives the B.26 lap-bar rule, -az the B.1 row
             peaks[f"+{axis}"] = positive
             peaks[f"-{axis}"] = negative
 

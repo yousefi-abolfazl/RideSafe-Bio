@@ -420,3 +420,24 @@ def test_report_file_stem_format():
     import re
 
     assert re.fullmatch(r"ridesafe_report_\d{8}_\d{4}", report_file_stem())
+
+def test_pipeline_surfaces_hard_braking_lap_bar():
+    """Hard braking (ax impulses <= -2 g) must surface as a -ax polarity peak
+    and activate the B.26 lap-bar restraint through the dashboard pipeline."""
+    build_all_datasets()
+    from src.synthetic_gen import generate_trapezoid_pulse
+    raw = generate_trapezoid_pulse(
+        FS, 6.0, plateau_amplitude=2.5, ramp_rate_g_per_s=5.0,
+        start_time=1.0, hold_time=1.5, axis="ax",
+    )
+    raw["ax"] = -raw["ax"]
+    from app import CANONICAL, run_evaluation_pipeline
+    results = run_evaluation_pipeline(
+        raw, CANONICAL, 500.0, None,
+        {"ax": False, "ay": False, "az": False}, "general",
+    )
+    assert results["peaks"]["-ax"] >= 2.0
+    assert results["peaks"]["+ax"] == 0.0
+    lap = next(r for r in results["assessment"].restraints
+               if r["condition"] == "-ax >= 2")
+    assert lap["met"] is True
