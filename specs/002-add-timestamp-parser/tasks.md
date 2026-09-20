@@ -174,3 +174,11 @@ Strict sequential order T001→T021; commit at story checkpoints (after Phase 3,
 - Failing-first is mandatory: T005, T010, T011, T014, T015 must be observed failing before their implementations (T006, T012, T016)
 - No new dependencies, no config keys, no `app.py` logic — the clarification keeps the counter tolerance inside the core grammar
 - Tests depending on untracked study data must skip cleanly on a fresh clone (T003)
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: residual gap found by /speckit.converge (2026-09-19) — append-only
+
+- [ ] T022 Reconcile plan decision D8 with implementation: either vectorize the per-row parsing loop in `convert_clock_timestamps` (`src/preprocessing.py`) or record the justification for the measured-fast per-row parsing in `docs/decisions.md`, keeping all 143 tests green per SC-003 (plan: D8) (partial)
