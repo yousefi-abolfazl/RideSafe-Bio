@@ -524,3 +524,23 @@
   | `app.py` | حلقه پیک‌ها: `peaks[axis]` بزرگی + کلیدهای `±ax` و `±az` | قاعده B.26 از داشبورد قابل‌فعال‌شدن شود | −ax=2.5g → lap bar met=True |
   | `tests/test_app.py` | +۱ آزمون ترمز شدید (−2.5g → −ax≥2 و lap bar) | بند ۷: رفتار قابل‌مشاهده مصرف‌کننده | failing-first → سبز |
 - **Result / Validation:** ۱۲۸/۱۲۸ کل پروژه. ترمز شدید مصنوعی (−2.5g پلاتو، +ax=0) از مسیر کامل پایپ‌لاین داشبورد شناسایی و قاعده B.26 فعال شد. `src/` دست‌نخورده.
+
+### Task 5.1 — تبدیل زمان لاگر حکمت به ثانیه (specs/002-add-timestamp-parser) ✅
+
+- **Goal:** مرحله ingestion هسته یک ستون زمان از نوع ساعتِ دیواری (`HH:MM:SS(.mmm)?(\s+\d+)?` — شامل توکن چسبنده زمان+کاونتر طبق جلسه clarify) را به ثانیه نسبی float64 تبدیل کند؛ مرتب‌سازی پایدار با حفظ تعداد ردیف؛ رد صریح rollover/داده خراب؛ متادیتای ردیابی. خارج از دامنه: رسampling، جداسازی گپ، fs از کاونتر.
+- **Checkpoints:**
+  - [x] T001 ثبت پلن (این ورودی)
+  - [x] T002 بیس‌لاین ۱۲۸/۱۲۸ پیش از تغییر
+  - [x] T003–T004 فیکسچرهای مرجع + سنجاق passthrough عددی
+  - [x] T005–T009 US1: تست failing-first تبدیل + `convert_clock_timestamps` + ادغام در `standardize_signal_frame` + متادیتا + تست انتگرال
+  - [x] T010–T013 US2: sort پایدار/گره/اعوجاج + حفظ ردیف روی ۷ فایل مرجع
+  - [x] T014–T016 US3: خطاهای شماره‌خط‌دار + رد rollover با آستانه
+  - [x] T017–T021 اسموک کارایی، رگرسیون کامل، docs، بازنشستگی اسکریپت تشخیصی، commit
+- **Changes:**
+  | فایل | تغییر | دلیل | نتیجه |
+  |---|---|---|---|
+  | `src/preprocessing.py` | +`convert_clock_timestamps` (گرامر `^HH:MM:SS(.mmm)?(\s+\d+)?$`، تشخیص per-value، رد mixed/malformed/rollover) + پارامتر `rollover_threshold_s` در `standardize_signal_frame` + sort پایدار + متادیتای ۶ کلیدی | FR-001..FR-007 | مقادیر خروجی هم‌تراز ورودی، نسبی به زودترین نمونه |
+  | `tests/test_preprocessing.py` | +۱۵ آزمون (فیکسچر ۷ فایل مرجع با skip دوستانه، passthrough، تبدیل، متادیتا، انتگرال، sort/گره/اعوجاج، خطاها، rollover، کارایی) | بند ۷ + contracts/test-contract | ۱۴۳/۱۴۳ |
+  | `specs/002-add-timestamp-parser/*` | spec + plan + research + data-model + contracts + quickstart + tasks (۱۹/۲۱ تسک کد، T020 پاک‌سازی) | گردش‌کار speckit | ثبت‌شده |
+  | `docs/roadmap.md` | سطر ۵.۰ ingestion در جدول فاز ۵ | بند ۲ | — |
+- **Result / Validation:** ۱۴۳/۱۴۳ کل پروژه (۱۲۸ بیس‌لاین + ۱۵ جدید) — صفر رگرسیون. Failing-first واقعی در T005 مشاهده شد (ImportError → سپس ValueError مسیر numeric). دو اشکال حین TDD کشف و رفع شد: (۱) بررسی «ستون ترکیبی عدد+ساعت» در بازنویسی اولیه جامانده بود؛ (۲) تفریق اولین نمونه پیش از sort، جفت‌شدگی زمان/شتاب را در ورودی نامرتب به‌هم می‌ریخت — راه‌حل: هلپر مقادیر هم‌تراز با ورودی و نسبی به زودترین نمونه برمی‌گرداند و `standardize_signal_frame` با `sort_values(kind="stable")` تایم‌لاین نهایی غیرنزولی می‌سازد. کارایی: تبدیل 48k سطر < 2s (تست suite). US2/US3 چون هلپر طبق قرارداد کامل پیاده شده بود، به‌عنوان pin رگرسیون سبز شدند (انحراف مستند از failing-first). UI-free بند ۴ حفظ شد.

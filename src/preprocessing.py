@@ -6,6 +6,8 @@ unit conversion and axis inversion. UI-free by project convention
 section 4: imports only numpy/scipy/pandas, returns plain data structures.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, sosfilt, sosfiltfilt
@@ -75,18 +77,100 @@ def apply_butterworth_lowpass(
     return filtered
 
 
+def convert_clock_timestamps(
+    stamps: pd.Series,
+    rollover_threshold_s: float = 60.0,
+) -> tuple[np.ndarray, dict]:
+    """Convert a raw time column to seconds relative to the earliest sample.
+
+    Per-value detection (research D3): finite numbers pass through as seconds;
+    strings matching the clock grammar ``HH:MM:SS(.mmm)?( counter)?`` convert
+    (the optional trailing sample counter is read and ignored — clarification
+    2026-09-19); anything else raises with the 1-based line number. Returned
+    values stay ALIGNED to the input row order, relative to the earliest
+    sample; the caller sorts the frame (stable, file order breaks ties) to
+    obtain the final non-decreasing timeline. A backwards jump beyond
+    ``rollover_threshold_s`` in file order is refused (research D5).
+    """
+    if rollover_threshold_s <= 0 or not np.isfinite(rollover_threshold_s):
+        raise ValueError(
+            "rollover_threshold_s must be finite and positive, "
+            f"got {rollover_threshold_s}"
+        )
+    raw = stamps.reset_index(drop=True)
+    clock_pattern = re.compile(r"^(\d{1,2}):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?"
+                               r"(?:\s+\d+)?$")
+    is_numeric = pd.to_numeric(raw, errors="coerce").notna().to_numpy()
+
+    seconds = np.empty(len(raw), dtype=float)
+    has_clock = False
+    for index, value in enumerate(raw):
+        if is_numeric[index]:
+            seconds[index] = float(value)
+            continue
+        text = str(value).strip()
+        match = clock_pattern.match(text)
+        if match is None:
+            raise ValueError(
+                f"Unparseable time value at line {index + 1}: {value!r}; "
+                "expected HH:MM:SS.mmm (optionally followed by a sample "
+                "counter separated by whitespace) or numeric seconds"
+            )
+        hours, minutes, secs, frac = match.groups()
+        seconds[index] = (
+            int(hours) * 3600 + int(minutes) * 60 + int(secs)
+            + (int(frac) / 10 ** len(frac) if frac else 0.0)
+        )
+        has_clock = True
+
+    if is_numeric.any() and has_clock:
+        first_numeric = int(np.flatnonzero(is_numeric)[0])
+        first_clock = int(np.flatnonzero(~is_numeric)[0])
+        raise ValueError(
+            "Mixed time column: numeric seconds and clock stamps cannot be "
+            f"combined (line {first_numeric + 1} is numeric "
+            f"{raw.iloc[first_numeric]!r} but line {first_clock + 1} is "
+            f"clock stamp {raw.iloc[first_clock]!r})"
+        )
+
+    # Rollover refusal (research D5): a large backwards jump in FILE order is
+    # the rollover/foreign-data signature — sorted jitter was handled above.
+    jumps = np.diff(seconds)
+    worst = int(np.argmin(jumps)) if jumps.size else -1
+    if worst >= 0 and jumps[worst] < -rollover_threshold_s:
+        raise ValueError(
+            f"Clock jumped backwards by {-jumps[worst]:.3f} s between lines "
+            f"{worst + 1} and {worst + 2} ({seconds[worst]:.3f} -> "
+            f"{seconds[worst + 1]:.3f}); rollover threshold is "
+            f"{rollover_threshold_s} s"
+        )
+
+    seconds -= seconds.min()  # relative to the earliest sample (FR-001)
+
+    ties = int(len(seconds) - np.unique(seconds).size)
+    metadata = {
+        "time_format_detected": "clock_hhmmss" if has_clock else "seconds",
+        "rows_in": int(len(raw)),
+        "rows_out": int(len(raw)),
+        "tied_stamps": ties,
+        "rollover_threshold_s": float(rollover_threshold_s),
+    }
+    return seconds, metadata
+
 def standardize_signal_frame(
     df: pd.DataFrame,
     column_mapping: dict[str, str],
     sampling_rate: float | None = None,
     unit_conversions: dict[str, str] | None = None,
     axis_inversions: dict[str, bool] | None = None,
+    rollover_threshold_s: float = 60.0,
 ) -> tuple[pd.DataFrame, dict]:
     """Map a raw logger frame onto the canonical time/ax/ay/az layout.
 
     Applies per-column unit conversion (e.g. "m/s2" -> "g") and per-axis
     sign inversion, then returns the standardized frame plus a metadata
-    dict describing everything that was applied.
+    dict describing everything that was applied. A time column of clock
+    stamps is converted to seconds first (see convert_clock_timestamps).
     """
     if column_mapping is None:
         raise ValueError("column_mapping must not be None; use {} for canonical input")
@@ -98,9 +182,13 @@ def standardize_signal_frame(
         )
     frame = df.rename(columns={v: k for k, v in column_mapping.items()})
 
+    time_metadata: dict = {}
     if TIME_COLUMN in frame.columns:
-        frame[TIME_COLUMN] = pd.to_numeric(frame[TIME_COLUMN], errors="raise")
-        frame = frame.sort_values(TIME_COLUMN).reset_index(drop=True)
+        seconds, time_metadata = convert_clock_timestamps(
+            frame[TIME_COLUMN], rollover_threshold_s=rollover_threshold_s
+        )
+        frame[TIME_COLUMN] = seconds
+        frame = frame.sort_values(TIME_COLUMN, kind="stable").reset_index(drop=True)
         if sampling_rate is None:
             sampling_rate = _estimate_sampling_rate(frame[TIME_COLUMN])
         applied_sampling_rate = float(sampling_rate)
@@ -147,6 +235,9 @@ def standardize_signal_frame(
         "unit_conversions": conversions_applied,
         "axis_inversions": inversions_applied,
     }
+    if time_metadata:
+        metadata.update(time_metadata)
+        metadata["time_column"] = column_mapping.get("time", TIME_COLUMN)
     return frame[standard_columns].reset_index(drop=True), metadata
 
 
