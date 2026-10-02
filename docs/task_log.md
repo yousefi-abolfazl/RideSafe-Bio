@@ -544,3 +544,13 @@
   | `specs/002-add-timestamp-parser/*` | spec + plan + research + data-model + contracts + quickstart + tasks (۱۹/۲۱ تسک کد، T020 پاک‌سازی) | گردش‌کار speckit | ثبت‌شده |
   | `docs/roadmap.md` | سطر ۵.۰ ingestion در جدول فاز ۵ | بند ۲ | — |
 - **Result / Validation:** ۱۴۳/۱۴۳ کل پروژه (۱۲۸ بیس‌لاین + ۱۵ جدید) — صفر رگرسیون. Failing-first واقعی در T005 مشاهده شد (ImportError → سپس ValueError مسیر numeric). دو اشکال حین TDD کشف و رفع شد: (۱) بررسی «ستون ترکیبی عدد+ساعت» در بازنویسی اولیه جامانده بود؛ (۲) تفریق اولین نمونه پیش از sort، جفت‌شدگی زمان/شتاب را در ورودی نامرتب به‌هم می‌ریخت — راه‌حل: هلپر مقادیر هم‌تراز با ورودی و نسبی به زودترین نمونه برمی‌گرداند و `standardize_signal_frame` با `sort_values(kind="stable")` تایم‌لاین نهایی غیرنزولی می‌سازد. کارایی: تبدیل 48k سطر < 2s (تست suite). US2/US3 چون هلپر طبق قرارداد کامل پیاده شده بود، به‌عنوان pin رگرسیون سبز شدند (انحراف مستند از failing-first). UI-free بند ۴ حفظ شد.
+
+### Task 5.2 — Manual Data Entry quick-check — لغو و حذف کامل بنا به تصمیم کارفرما ✅
+
+- **Goal:** ثبت لغو: ویژگی «ورود دستی داده» (specs/003-manual-entry) پس از پیاده‌سازی کامل روی شاخه، **به تصمیم کارفرما مطلوب تشخیص داده نشد و کلاً حذف شد**؛ هرگز به `main` merge نشد.
+- **Checkpoints:**
+  - [x] تأیید: کامیت‌های شاخه 003 (`c95be87`, `ea2c020`, `7796ff9`) منحصراً مخصوص این ویژگی بودند
+  - [x] hop به `main` و صحت‌سنجی: صفر ردپا از ویژگی در `app.py`/`src/` (فقط `fs_manual` بومی فاز ۴)
+  - [x] حذف شاخه محلی + `origin/003-manual-entry`؛ حذف `specs/003-manual-entry/`
+  - [x] `.specify/feature.json` → بازگشت به `specs/002-add-timestamp-parser` (آخرین ویژگی ادغام‌شده؛ T022 همچنان باز)
+- **Result / Validation:** بیس‌لاین `main` بدون این فیچر: ۱۴۳/۱۴۳؛ ردپای صفر در کد. تاریخچه شاخه در reflog محلی تا garbage-collection بازیابی‌پذیر است.
