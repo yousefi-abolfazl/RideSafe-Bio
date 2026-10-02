@@ -1,48 +1,55 @@
-"""Axis Convention guide figure tests (task 4.5, FR-009).
+"""Axis Convention guide figure tests (task 4.5 + client asset swap).
 
-Presentation-layer only: validates the static SVG asset, the exact
-direction labels, the dashboard wiring, and the UI-agnostic core rule.
+Presentation-layer only: validates the client-provided reference figure
+(raster PNG), the direction summary fallback, the dashboard wiring, and the
+UI-agnostic core rule.
 """
 
 import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SVG_PATH = REPO_ROOT / "assets" / "axis_guide.svg"
+GUIDE_PATH = REPO_ROOT / "assets" / "axis_guide.png"
 APP_PATH = REPO_ROOT / "app.py"
 SRC_DIR = REPO_ROOT / "src"
 
-# RB badge palette (src/config.py RB_BADGE_COLORS) + verdict colors.
-FORBIDDEN_HEXES = ("#6a1b9a", "#880e4f", "#e65100", "#0277bd", "#2e7d32")
-NEG = "[-\u2212]"  # ASCII hyphen or U+2212 minus
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+# The client-approved reference figure is a raster image: direction tokens
+# live in the text fallback, not in the pixels.
+def _fallback_text() -> str:
+    from app import build_axis_guide_fallback_markdown
+
+    return build_axis_guide_fallback_markdown()
 
 
-def _svg_text() -> str:
-    return SVG_PATH.read_text(encoding="utf-8")
+def test_asset_exists_and_is_valid_png():
+    assert GUIDE_PATH.is_file(), "assets/axis_guide.png is missing"
+    data = GUIDE_PATH.read_bytes()
+    assert data.startswith(PNG_MAGIC), "asset is not a valid PNG"
+    assert len(data) > 10_000, "asset suspiciously small for a guide figure"
 
 
-def test_asset_exists_and_is_valid_svg():
-    assert SVG_PATH.is_file(), "assets/axis_guide.svg is missing"
-    text = _svg_text()
-    assert len(text.strip()) > 0, "assets/axis_guide.svg is empty"
-    assert "<svg" in text, "asset has no <svg root"
-    root = ET.fromstring(text)  # raises on malformed XML
-    assert root.tag.endswith("svg"), f"unexpected root tag {root.tag}"
+def test_app_references_asset_and_expander():
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert "assets/axis_guide.png" in source, "app.py missing asset reference"
+    assert "Axis guide" in source, "app.py missing expander title"
+    assert "st.image" in source, "app.py must render the guide via st.image"
 
 
-def test_all_direction_tokens_and_keywords_present():
-    text = _svg_text()
+def test_fallback_direction_tokens_and_keywords_present():
+    text = _fallback_text()
     for token in ("+X", "+Y", "+Z"):
         assert token in text, f"missing token {token}"
+    neg = "[-\u2212]"
     for axis in ("X", "Y", "Z"):
-        assert re.search(rf"{NEG}{axis}", text), f"missing negative token -{axis}"
+        assert re.search(rf"{neg}{axis}", text), f"missing negative token -{axis}"
     for word in ("Forward", "Rearward", "Up", "Down"):
         assert word in text, f"missing keyword {word}"
 
 
-def test_body_feel_phrases_present():
-    text = _svg_text()
+def test_fallback_body_feel_phrases_present():
+    text = _fallback_text()
     for phrase in (
         "pressed into backrest",
         "thrown forward vs restraint",
@@ -53,19 +60,7 @@ def test_body_feel_phrases_present():
         assert phrase in text, f"missing body-feel phrase: {phrase}"
 
 
-def test_app_references_asset_and_expander():
-    source = APP_PATH.read_text(encoding="utf-8")
-    assert "assets/axis_guide.svg" in source, "app.py missing asset reference"
-    assert "Axis Convention" in source, "app.py missing expander title"
-
-
-def test_no_verdict_or_risk_colors_in_svg():
-    text = _svg_text().lower()
-    for forbidden in FORBIDDEN_HEXES:
-        assert forbidden not in text, f"forbidden RB color in guide: {forbidden}"
-
-
-def test_src_stays_ui_free():
+def test_no_ui_imports_in_src():
     offenders = []
     for path in sorted(SRC_DIR.glob("*.py")):
         for lineno, line in enumerate(

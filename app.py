@@ -41,8 +41,8 @@ from src.preprocessing import (
 st.set_page_config(page_title="RideSafe-Bio", page_icon="🎡", layout="wide")
 CANONICAL = {"time": TIME_COLUMN, "ax": "ax", "ay": "ay", "az": "az"}
 
-AXIS_GUIDE_PATH = Path(__file__).resolve().parent / "assets" / "axis_guide.svg"
-AXIS_GUIDE_TITLE = "🧭 Axis Convention — how to read directions"
+AXIS_GUIDE_PATH = Path(__file__).resolve().parent / "assets" / "axis_guide.png"
+AXIS_GUIDE_TITLE = "🧭 Axis guide"
 AXIS_GUIDE_FALLBACK_LINES = (
     "+X | Forward | pressed into backrest",
     "-X | Rearward / Braking | thrown forward vs restraint",
@@ -58,12 +58,9 @@ AXIS_GUIDE_CAPTION = (
 )
 
 
-def load_axis_guide_svg() -> str | None:
-    """Read assets/axis_guide.svg; None when missing/unreadable."""
-    try:
-        return AXIS_GUIDE_PATH.read_text(encoding="utf-8")
-    except OSError:
-        return None
+def load_axis_guide_image() -> Path | None:
+    """Return assets/axis_guide.png when present; None when missing."""
+    return AXIS_GUIDE_PATH if AXIS_GUIDE_PATH.is_file() else None
 
 
 def build_axis_guide_fallback_markdown() -> str:
@@ -545,9 +542,9 @@ def render_dashboard() -> None:
     else:
         guide_open = False
     with st.expander(AXIS_GUIDE_TITLE, expanded=guide_open):
-        guide_svg = load_axis_guide_svg()
-        if guide_svg is not None:
-            st.markdown(guide_svg, unsafe_allow_html=True)
+        guide_image = load_axis_guide_image()
+        if guide_image is not None:
+            st.image(str(guide_image), use_container_width=True)
         else:
             st.markdown(build_axis_guide_fallback_markdown())
         st.caption(AXIS_GUIDE_CAPTION)
