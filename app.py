@@ -517,17 +517,18 @@ def render_dashboard() -> None:
 
         st.divider()
         st.header("Signal Settings")
-        invert = {
-            "ax": st.checkbox("Invert ax"),
-            "ay": st.checkbox("Invert ay"),
-            "az": st.checkbox("Invert az"),
-        }
-        unit_choice = st.selectbox("Input unit", ("g", "m/s²"))
-        fs_mode = st.radio("Sampling rate", ("Auto (from time)", "Manual"))
-        fs_manual = st.number_input(
-            "fs (Hz)", min_value=1.0, value=500.0, step=50.0,
-            disabled=fs_mode != "Manual",
-        )
+        st.caption("Input unit is fixed to g (ISO standard unit).")
+        with st.expander("⚙️ Sensor Calibration & Preprocessing", expanded=False):
+            invert = {
+                "ax": st.checkbox("Invert ax"),
+                "ay": st.checkbox("Invert ay"),
+                "az": st.checkbox("Invert az"),
+            }
+            fs_mode = st.radio("Sampling rate", ("Auto (from time)", "Manual"))
+            fs_manual = st.number_input(
+                "fs (Hz)", min_value=1.0, value=500.0, step=50.0,
+                disabled=fs_mode != "Manual",
+            )
         device_class = st.selectbox(
             "Device class", tuple(JERK_LIMITS), index=1,
             help="Jerk limit: family 7 / general 10 / extreme 15 g/s (B.5)",
@@ -567,13 +568,9 @@ def render_dashboard() -> None:
     try:
         column_mapping = build_column_mapping(mapping_selection)
         sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
-        unit_conversions = (
-            {a: "m/s2_to_g" for a in ACCELERATION_COLUMNS}
-            if unit_choice == "m/s²" else None
-        )
         results = run_evaluation_pipeline(
             raw_frame, column_mapping, sampling_rate,
-            unit_conversions, invert, device_class,
+            None, invert, device_class,
         )
     except Exception as exc:  # noqa: BLE001 — surface to operator
         st.error(f"Configuration error: {exc}")
@@ -582,7 +579,7 @@ def render_dashboard() -> None:
     metadata = results["metadata"]
     st.success(
         f"Signal ready — {len(results['filtered'])} samples @ {results['fs']:.1f} Hz · "
-        f"unit {'m/s²→g' if unit_choice == 'm/s²' else 'g'} · inverted: "
+        f"unit g · inverted: "
         f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
     )
 

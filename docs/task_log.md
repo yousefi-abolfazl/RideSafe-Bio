@@ -554,3 +554,13 @@
   - [x] حذف شاخه محلی + `origin/003-manual-entry`؛ حذف `specs/003-manual-entry/`
   - [x] `.specify/feature.json` → بازگشت به `specs/002-add-timestamp-parser` (آخرین ویژگی ادغام‌شده؛ T022 همچنان باز)
 - **Result / Validation:** بیس‌لاین `main` بدون این فیچر: ۱۴۳/۱۴۳؛ ردپای صفر در کد. تاریخچه شاخه در reflog محلی تا garbage-collection بازیابی‌پذیر است.
+
+### UI Fix — بازسازماندهی Signal Settings بنا به بازخورد کارفرما ✅
+
+- **Goal:** Device Class در جای خود می‌ماند (پارامتر کلیدی B.5)؛ Invert + Sampling Rate به اکسپندر جمع‌شونده «⚙️ Sensor Calibration & Preprocessing» (پیش‌فرض Collapsed) منتقل شدند؛ Input Unit حذف شد — واحد همیشه g.
+- **Changes:**
+  | فایل | تغییر | دلیل | نتیجه |
+  |---|---|---|---|
+  | `app.py` | اکسپندر آکاردئونی Calibrations + حذف `unit_choice` و منطق `unit_conversions` از فراخوانی پایپ‌لاین (همیشه `None`) + ساده‌سازی بنر به «unit g» + کپشن ثابت بودن واحد | بازخورد کارفرما | Device Class همچنان بیرون اکسپندر و مرئی |
+  | `tests/test_axis_guide.py` | بازطراحی ۶→۵ تست: SVG-specific (magic XML، رنگ ممنوعه) حذف؛ PNG magic-byte + ارجاع داشبورد + توکن/عبارات در fallback | تعویض asset به PNG کارفرما | پوشش معادل برای راستر |
+- **Result / Validation:** ۱۴۲/۱۴۲ (۱۴۳ − ۱ به‌دلیل ادغام تست‌های axis-guide) — صفر شکست؛ Smoke داشبورد HTTP 200 + صفر Traceback. هسته (`src/`) دست‌نخورده — قابلیت تبدیل m/s²→g در هسته برای ingestion آینده حفظ شده، فقط UI حذف شد.
