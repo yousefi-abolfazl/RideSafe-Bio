@@ -615,20 +615,22 @@ def render_dashboard() -> None:
         dose = results["dose"]
         combined = results["combined"]
         c1, c2, c3 = st.columns(3)
-        c1.metric(
-            "Max |Jerk| (az)", f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s",
-            f"limit {jerk_verdict['active_limit_g_per_s']} · "
-            f"{'PASS' if jerk_verdict['compliant'] else 'FAIL'}",
+        c1.metric("Max |Jerk| (az)", f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s")
+        jerk_mark = ":green[● PASS]" if jerk_verdict["compliant"] else ":red[● FAIL]"
+        c1.markdown(f"{jerk_mark} · limit {jerk_verdict['active_limit_g_per_s']} g/s")
+        c2.metric("Impulses (az)", len(results["impulses"]))
+        dose_mark = ":green[● PASS]" if dose["dose_compliant"] else ":red[● FAIL]"
+        recovery_mark = (
+            ":green[● PASS]" if dose["recovery_compliant"] else ":red[● FAIL]"
         )
-        c2.metric(
-            "Impulses (az)", len(results["impulses"]),
-            f"dose {dose['total_dose_g_s']:.0f} g·s · "
-            f"{'PASS' if dose['dose_compliant'] else 'FAIL'} · recovery "
-            f"{'PASS' if dose['recovery_compliant'] else 'FAIL'}",
+        c2.markdown(
+            f"dose {dose['total_dose_g_s']:.0f} g·s {dose_mark} · "
+            f"recovery {recovery_mark}"
         )
-        c3.metric(
-            "3D Ratio max", f"{combined['max_ratio_3d']:.3f}",
-            f"{'PASS' if combined['compliant'] else 'FAIL'}",
+        c3.metric("3D Ratio max", f"{combined['max_ratio_3d']:.3f}")
+        c3.markdown(
+            ":green[● PASS (within ellipsoid)]"
+            if combined["compliant"] else ":red[● FAIL (ellipsoid breached)]"
         )
 
         if jerk_verdict["violation_intervals"]:
