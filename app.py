@@ -321,21 +321,19 @@ def plot_time_series(
         (jerk_verdict, "Jerk violation (B.5)", "violation_intervals"),
         (combined, "3D ratio violation (B.6)", "triaxial_violations"),
     ):
-        for i, interval in enumerate(verdict[key]):
+        for interval in verdict[key]:
             fig.add_vrect(
                 x0=interval["start_s"], x1=interval["end_s"],
-                fillcolor="rgba(255,0,0,0.15)", line_width=0,
-                annotation_text=f"{label} #{i + 1}",
-                annotation_position="top left",
-                annotation_font_size=10,
+                fillcolor="rgba(255,0,0,0.15)", line_width=1.5,
+                line_color="rgba(214, 39, 40, 0.85)",
             )
-    for i, transient in enumerate(combined["excluded_transients"]):
+    for transient in combined["excluded_transients"]:
         fig.add_vrect(
             x0=transient["start_s"], x1=transient["end_s"],
-            fillcolor="rgba(128,128,128,0.15)", line_width=0,
-            annotation_text=f"excluded #{i + 1}",
-            annotation_position="bottom left", annotation_font_size=9,
+            fillcolor="rgba(128,128,128,0.15)", line_width=1,
+            line_color="rgba(128, 128, 128, 0.6)",
         )
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.05))
     fig.update_layout(
         xaxis_title="time (s)", yaxis_title="acceleration (g)",
         height=420, margin=dict(l=40, r=20, t=30, b=30), legend_orientation="h",
