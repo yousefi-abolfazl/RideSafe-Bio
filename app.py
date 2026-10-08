@@ -301,12 +301,46 @@ def report_file_stem() -> str:
     return f"ridesafe_report_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
 
+def _violation_peak_points(
+    filtered: pd.DataFrame, intervals: list[dict]
+) -> tuple[list[float], list[float], list[str]]:
+    """Peak |a| sample per violation interval → (times, values, hover texts).
+
+    The marker is placed exactly on the owning axis curve: within each
+    interval the sample with the largest absolute acceleration across the
+    three axes wins, keeping its signed value.
+    """
+    times = filtered[TIME_COLUMN].to_numpy(dtype=float)
+    peak_times: list[float] = []
+    peak_values: list[float] = []
+    hover_texts: list[str] = []
+    for interval in intervals:
+        mask = (times >= interval["start_s"]) & (times <= interval["end_s"])
+        if not mask.any():
+            continue
+        clause = interval.get("clause", "ISO 17929")
+        best_time = best_value = None
+        for axis in ACCELERATION_COLUMNS:
+            axis_values = filtered[axis].to_numpy(dtype=float)[mask]
+            axis_times = times[mask]
+            idx = int(np.argmax(np.abs(axis_values)))
+            if best_value is None or abs(axis_values[idx]) > abs(best_value):
+                best_time = float(axis_times[idx])
+                best_value = float(axis_values[idx])
+        peak_times.append(best_time)
+        peak_values.append(best_value)
+        hover_texts.append(
+            f"{clause}<br>t = {best_time:.3f} s<br>|a| = {abs(best_value):.2f} g"
+        )
+    return peak_times, peak_values, hover_texts
+
+
 def plot_time_series(
     filtered: pd.DataFrame,
     jerk_verdict: dict,
     combined: dict,
 ) -> "go.Figure":
-    """Interactive 3-axis time series with red shading over violation runs."""
+    """Interactive 3-axis time series with violation peak markers (B.5 / B.6)."""
     import plotly.graph_objects as go
 
     fig = go.Figure()
@@ -317,23 +351,23 @@ def plot_time_series(
             mode="lines", name=axis, line=dict(color=colors[axis], width=1),
         ))
 
-    for verdict, label, key in (
-        (jerk_verdict, "Jerk violation (B.5)", "violation_intervals"),
-        (combined, "3D ratio violation (B.6)", "triaxial_violations"),
-    ):
-        for interval in verdict[key]:
-            fig.add_vrect(
-                x0=interval["start_s"], x1=interval["end_s"],
-                fillcolor="rgba(255,0,0,0.15)", line_width=1.5,
-                line_color="rgba(214, 39, 40, 0.85)",
-            )
-    for transient in combined["excluded_transients"]:
-        fig.add_vrect(
-            x0=transient["start_s"], x1=transient["end_s"],
-            fillcolor="rgba(128,128,128,0.15)", line_width=1,
-            line_color="rgba(128, 128, 128, 0.6)",
-        )
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.05))
+    intervals = (
+        list(jerk_verdict["violation_intervals"])
+        + list(combined["triaxial_violations"])
+    )
+    peak_times, peak_values, hover_texts = _violation_peak_points(
+        filtered, intervals
+    )
+    fig.add_trace(go.Scatter(
+        x=peak_times, y=peak_values, mode="markers",
+        name="Violations (B.5 / B.6)",
+        marker=dict(color="#d62728", size=9, symbol="circle",
+                    line=dict(color="white", width=1.5)),
+        text=hover_texts,
+        hovertemplate="%{text}<extra>Violations (B.5 / B.6)</extra>",
+    ))
+
+    fig.update_xaxes(rangeslider=dict(visible=False))
     fig.update_layout(
         xaxis_title="time (s)", yaxis_title="acceleration (g)",
         height=420, margin=dict(l=40, r=20, t=30, b=30), legend_orientation="h",

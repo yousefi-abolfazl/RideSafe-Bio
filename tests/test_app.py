@@ -127,28 +127,44 @@ def test_time_series_structure(jerk_dataset_results):
     fig = plot_time_series(filtered, jerk_verdict, combined)
 
     scatter_traces = [t for t in fig.data if t.type in ("scatter", "scattergl")]
-    assert len(scatter_traces) == 3  # ax, ay, az
+    assert len(scatter_traces) == 4  # ax, ay, az + violation peak markers
 
-    shapes = list(fig.layout.shapes)
-    assert len(shapes) == len(jerk_verdict["violation_intervals"]) \
-        + len(combined["triaxial_violations"]) \
-        + len(combined["excluded_transients"])
+    markers = [t for t in fig.data if t.name == "Violations (B.5 / B.6)"]
+    assert len(markers) == 1
 
+    assert list(fig.layout.shapes) == []  # no full-height shapes anymore
 
+def test_time_series_violation_peak_markers_on_jerk_dataset(jerk_dataset_results):
 
-
-
-def test_time_series_vrects_on_jerk_dataset(jerk_dataset_results):
+    import numpy as np
 
     filtered, jerk_verdict, combined = jerk_dataset_results
 
     fig = plot_time_series(filtered, jerk_verdict, combined)
 
-    red_shapes = [s for s in fig.layout.shapes
-                  if s.fillcolor == "rgba(255,0,0,0.15)"]
-    assert len(red_shapes) >= 2  # rise + fall jerk violations
-    for shape in red_shapes:
-        assert shape.x0 < shape.x1
+    markers = [t for t in fig.data if t.name == "Violations (B.5 / B.6)"]
+    assert len(markers) == 1
+    marker_trace = markers[0]
+
+    intervals = (
+        jerk_verdict["violation_intervals"] + combined["triaxial_violations"]
+    )
+    assert len(marker_trace.x) == len(intervals)
+    assert len(intervals) >= 2  # rise + fall jerk violations on this dataset
+
+    az = filtered["az"].to_numpy(dtype=float)
+    times = filtered["time"].to_numpy(dtype=float)
+    for peak_x, peak_y, hover in zip(
+        marker_trace.x, marker_trace.y, marker_trace.text
+    ):
+        inside = any(
+            interval["start_s"] <= peak_x <= interval["end_s"]
+            for interval in intervals
+        )
+        assert inside, f"marker at {peak_x} outside every violation interval"
+        idx = int(np.argmin(np.abs(times - peak_x)))
+        assert peak_y == pytest.approx(az[idx])  # sits exactly on the az curve
+        assert "B.5" in hover
 
 
 
