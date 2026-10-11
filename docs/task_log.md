@@ -553,7 +553,18 @@
   - [x] hop به `main` و صحت‌سنجی: صفر ردپا از ویژگی در `app.py`/`src/` (فقط `fs_manual` بومی فاز ۴)
   - [x] حذف شاخه محلی + `origin/003-manual-entry`؛ حذف `specs/003-manual-entry/`
   - [x] `.specify/feature.json` → بازگشت به `specs/002-add-timestamp-parser` (آخرین ویژگی ادغام‌شده؛ T022 همچنان باز)
-- **Result / Validation:** بیس‌لاین `main` بدون این فیچر: ۱۴۳/۱۴۳؛ ردپای صفر در کد. تاریخچه شاخه در reflog محلی تا garbage-collection بازیابی‌پذیر است.
+- **Result / Validation:** ۱۴۲/۱۴۲ (۱۴۳ − ۱ به‌دلیل ادغام تست‌های axis-guide) — صفر شکست؛ Smoke داشبورد HTTP 200 + صفر Traceback. هسته (`src/`) دست‌نخورده — قابلیت تبدیل m/s²→g در هسته برای ingestion آینده حفظ شده، فقط UI حذف شد.
+
+### UI Redesign — چیدمان تک‌صفحه‌ای چهار تبه (Zero-Scroll) بنا به فیدبک استاد ✅
+
+- **Goal:** بازطراحی داشبورد به ۴ تب وظیفه‌محور بدون اسکرول: «📁 Data Overview» (کارت‌های متادیتا + پیش‌نمایش ۱۲ سطری + وضعیت سنسور)، «🚦 Overall Safety Check» (۵ بنر تمام‌عرض: B.5 / B.15 / B.6 / RB / حکم کلی)، «📈 Signal & Kinematics» (کارت‌های پیک + نمودار مارکدار)، «🧬 3D Biomechanics & Passport» (چیدمان دوستونه 1.1/0.9: بیضی 3D ~500px کنار جدول RB + مهاربندهای فعال + دانلودها).
+- **Changes:**
+  | فایل | تغییر | دلیل | نتیجه |
+  |---|---|---|---|
+  | `app.py` | +ثابت `TAB_TITLES`؛ Column Mapping فشرده به ۴ ستون؛ حذف بلوک‌های تکراری (dataframe کامل، جدول Traceability، بنرهای تکراری)؛ انتقال Success داخل جریان | فیدبک استاد — Zero-Scroll | ۷۹۹ → ۸۴۸ خط با محتوای بیشتر در ۴ تب |
+  | `app.py` | `plot_3d_ellipsoid` height 520→500 | چیدمان دوستونه | — |
+  | `tests/test_app.py` | +۱ تست ساختار تب‌ها (`test_dashboard_tab_structure`) | بند ۷ | ۱۴۳/۱۴۳ |
+- **Result / Validation:** ۱۴۳/۱۴۳ — دقیقاً بیس‌لاین هدف کارفرما؛ `git diff --stat src/` خالی؛ Smoke HTTP 200 + صفر Traceback. امضای همه هلپرهای تست‌شده (`build_per_axis_table`, `plot_time_series`, `plot_3d_ellipsoid`, `build_compliance_banner_html`, `build_risk_badge_html`, `build_report`, `build_text_report`) بدون تغییر. حکم کلی (COMPLIANT/NON-COMPLIANT) حالا در تب Overall به‌عنوان بنر پایانی؛ جدول Traceability با جزئیات در گزارش Export حفظ شد.
 
 ### UI Fix — بازسازماندهی Signal Settings بنا به بازخورد کارفرما ✅
 

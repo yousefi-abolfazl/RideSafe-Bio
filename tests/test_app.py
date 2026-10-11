@@ -457,3 +457,13 @@ def test_pipeline_surfaces_hard_braking_lap_bar():
     lap = next(r for r in results["assessment"].restraints
                if r["condition"] == "-ax >= 2")
     assert lap["met"] is True
+
+def test_dashboard_tab_structure():
+    from app import TAB_TITLES
+
+    assert TAB_TITLES == (
+        "📁 Data Overview",
+        "🚦 Overall Safety Check",
+        "📈 Signal & Kinematics",
+        "🧬 3D Biomechanics & Passport",
+    )

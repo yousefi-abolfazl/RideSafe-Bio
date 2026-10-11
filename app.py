@@ -41,6 +41,13 @@ from src.preprocessing import (
 st.set_page_config(page_title="RideSafe-Bio", page_icon="🎡", layout="wide")
 CANONICAL = {"time": TIME_COLUMN, "ax": "ax", "ay": "ay", "az": "az"}
 
+TAB_TITLES = (
+    "📁 Data Overview",
+    "🚦 Overall Safety Check",
+    "📈 Signal & Kinematics",
+    "🧬 3D Biomechanics & Passport",
+)
+
 AXIS_GUIDE_PATH = Path(__file__).resolve().parent / "assets" / "axis_guide.png"
 AXIS_GUIDE_TITLE = "🧭 Axis guide"
 AXIS_GUIDE_FALLBACK_LINES = (
@@ -424,7 +431,7 @@ def plot_3d_ellipsoid(
         scene=dict(
             xaxis_title="ax (g)", yaxis_title="ay (g)", zaxis_title="az (g)",
         ),
-        height=520, margin=dict(l=0, r=0, t=20, b=0),
+        height=500, margin=dict(l=0, r=0, t=20, b=0),
         legend_orientation="h",
     )
     return fig
@@ -615,12 +622,118 @@ def render_dashboard() -> None:
         f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
     )
 
-    tab_signal, tab_eval, tab_passport = st.tabs(
-        ["📈 Signal", "🔍 Evaluation", "🎫 Risk Passport"]
+    tab_overview, tab_overall, tab_signal, tab_passport = st.tabs(TAB_TITLES)
+
+    st.subheader("Column Mapping")
+    st.caption("Map the uploaded logger columns onto the canonical axes.")
+    columns = ["(none)"] + list(raw_frame.columns)
+    default_map = suggest_default_mapping(list(raw_frame.columns))
+    map_cols = st.columns(4)
+    mapping_selection = {}
+    for map_col, canonical in zip(map_cols, ("time", "ax", "ay", "az")):
+        with map_col:
+            mapping_selection[canonical] = st.selectbox(
+                canonical, columns, index=columns.index(default_map[canonical])
+            )
+
+    try:
+        column_mapping = build_column_mapping(mapping_selection)
+        sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
+        results = run_evaluation_pipeline(
+            raw_frame, column_mapping, sampling_rate,
+            None, invert, device_class,
+        )
+    except Exception as exc:  # noqa: BLE001 — surface to operator
+        st.error(f"Configuration error: {exc}")
+        return
+
+    metadata = results["metadata"]
+    filtered = results["filtered"]
+    jerk_verdict = results["jerk_verdict"]
+    dose = results["dose"]
+    combined = results["combined"]
+    assessment = results["assessment"]
+
+    st.success(
+        f"Signal ready — {len(filtered)} samples @ {results['fs']:.1f} Hz · "
+        f"unit g · inverted: "
+        f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
     )
 
+    with tab_overview:
+        o1, o2, o3, o4 = st.columns(4)
+        o1.metric("Samples", f"{len(filtered):,}")
+        o2.metric("Sampling rate", f"{results['fs']:.0f} Hz")
+        o3.metric(
+            "Ride duration",
+            f"{filtered[TIME_COLUMN].iloc[-1] - filtered[TIME_COLUMN].iloc[0]:.2f} s",
+        )
+        o4.metric("Device class", device_class)
+        inverted = ", ".join(
+            a for a, v in metadata["axis_inversions"].items() if v
+        ) or "none"
+        mapped = ", ".join(
+            f"{k} ← {v}" for k, v in metadata["mapped_columns"].items()
+        )
+        st.info(
+            f"🧭 Sensor alignment — mapped columns: {mapped} · inverted: {inverted}"
+        )
+        st.dataframe(
+            filtered.head(12), use_container_width=True, height=260,
+            hide_index=True,
+        )
+        st.caption("First 12 rows of the filtered signal (time, ax, ay, az).")
+
+    with tab_overall:
+        if jerk_verdict["compliant"]:
+            st.success(
+                f"🧪 **Jerk B.5 — PASS** · max "
+                f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s · limit "
+                f"{jerk_verdict['active_limit_g_per_s']} g/s "
+                f"({jerk_verdict['device_class']})"
+            )
+        else:
+            st.error(
+                f"🧪 **Jerk B.5 — FAIL** · max "
+                f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s · limit "
+                f"{jerk_verdict['active_limit_g_per_s']} g/s "
+                f"({jerk_verdict['device_class']})"
+            )
+        dose_ok = dose["dose_compliant"] and dose["recovery_compliant"]
+        dose_banner = (
+            f"⚡ **Cumulative dose & recovery B.15 — "
+            f"{'PASS' if dose_ok else 'FAIL'}** · dose "
+            f"{dose['total_dose_g_s']:.0f} / {dose['tolerance_g_s']:.0f} g·s · "
+            f"recovery {'OK' if dose['recovery_compliant'] else 'VIOLATED'}"
+        )
+        if dose_ok:
+            st.success(dose_banner)
+        else:
+            st.error(dose_banner)
+        if combined["compliant"]:
+            st.success(
+                f"🎯 **3D Ellipsoid B.6 — PASS** · max ratio "
+                f"{combined['max_ratio_3d']:.3f} · "
+                f"{len(combined['triaxial_violations'])} unsafe interval(s)"
+            )
+        else:
+            st.error(
+                f"🎯 **3D Ellipsoid B.6 — FAIL** · max ratio "
+                f"{combined['max_ratio_3d']:.3f} · "
+                f"{len(combined['triaxial_violations'])} unsafe interval(s)"
+            )
+        st.info(
+            f"🧬 **Biomechanical risk: {assessment.overall_rb}"
+            f" ({assessment.extremity} extremity)** — physical test verification "
+            f"{'REQUIRED (Table B.1 Note 3)' if assessment.test_required else 'not required'}"
+        )
+        overall_ok = (
+            jerk_verdict["compliant"] and dose["dose_compliant"]
+            and dose["recovery_compliant"] and combined["compliant"]
+        )
+        st.markdown(build_compliance_banner_html(overall_ok), unsafe_allow_html=True)
+
     with tab_signal:
-        filtered = results["filtered"]
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Peak ax", f"{filtered['ax'].abs().max():.2f} g")
         m2.metric("Peak ay", f"{filtered['ay'].abs().max():.2f} g")
@@ -630,153 +743,40 @@ def render_dashboard() -> None:
             f"{filtered[TIME_COLUMN].iloc[-1] - filtered[TIME_COLUMN].iloc[0]:.2f} s",
         )
         st.plotly_chart(
-            plot_time_series(filtered, results["jerk_verdict"], results["combined"]),
+            plot_time_series(filtered, jerk_verdict, combined),
             use_container_width=True,
         )
-        st.dataframe(filtered, use_container_width=True, height=300)
-        st.caption("Filtered (4-pole Butterworth 5 Hz single-pass, SOS) — full dataset.")
-        st.download_button(
-            "Download filtered CSV",
-            data=filtered.to_csv(index=False).encode("utf-8"),
-            file_name="ridesafe_filtered_signal.csv",
-            mime="text/csv",
+        st.caption(
+            "Filtered signal (4-pole Butterworth 5 Hz) with violation peak "
+            "markers — hover a marker for clause, time and amplitude."
         )
 
-    with tab_eval:
-        jerk_verdict = results["jerk_verdict"]
-        dose = results["dose"]
-        combined = results["combined"]
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Max |Jerk| (az)", f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s")
-        jerk_mark = ":green[● PASS]" if jerk_verdict["compliant"] else ":red[● FAIL]"
-        c1.markdown(f"{jerk_mark} · limit {jerk_verdict['active_limit_g_per_s']} g/s")
-        c2.metric("Impulses (az)", len(results["impulses"]))
-        dose_mark = ":green[● PASS]" if dose["dose_compliant"] else ":red[● FAIL]"
-        recovery_mark = (
-            ":green[● PASS]" if dose["recovery_compliant"] else ":red[● FAIL]"
-        )
-        c2.markdown(
-            f"dose {dose['total_dose_g_s']:.0f} g·s {dose_mark} · "
-            f"recovery {recovery_mark}"
-        )
-        c3.metric("3D Ratio max", f"{combined['max_ratio_3d']:.3f}")
-        c3.markdown(
-            ":green[● PASS (within ellipsoid)]"
-            if combined["compliant"] else ":red[● FAIL (ellipsoid breached)]"
-        )
-
-        if jerk_verdict["violation_intervals"]:
-            st.warning(
-                f"Jerk (B.5): {len(jerk_verdict['violation_intervals'])} violation "
-                "interval(s) — details in Risk Passport."
-            )
-        if combined["triaxial_violations"]:
-            st.warning(
-                f"3D combined (B.6): {len(combined['triaxial_violations'])} violation "
-                "interval(s)."
-            )
-        for transient in combined["excluded_transients"]:
-            st.caption(
-                f"Excluded transient (B.16): {transient['duration_s']:.3f} s at "
-                f"{transient['start_s']:.2f} s (peak {transient['peak_ratio']:.2f})"
-            )
+    col_3d, col_passport = st.columns([1.1, 0.9])
+    with col_3d:
         st.plotly_chart(
-            plot_3d_ellipsoid(results["filtered"], combined),
-            use_container_width=True,
+            plot_3d_ellipsoid(filtered, combined), use_container_width=True
         )
         st.caption(
             "Acceleration vector vs the B.6 ellipsoid (green: inside, red x: outside)."
         )
-
-    with tab_passport:
-        assessment = results["assessment"]
-
-        # overall compliance banner (red reserved for FAIL verdicts)
-        overall_ok = (
-            results["jerk_verdict"]["compliant"]
-            and results["dose"]["dose_compliant"]
-            and results["dose"]["recovery_compliant"]
-            and results["combined"]["compliant"]
-        )
-        st.markdown(
-            build_compliance_banner_html(overall_ok),
-            unsafe_allow_html=True,
-        )
-
-        # RB badge (client-approved palette; red is NOT used here)
-        st.markdown(
-            build_risk_badge_html(
-                assessment.overall_rb,
-                assessment.extremity,
-                RB_BADGE_COLORS[assessment.overall_rb],
-            ),
-            unsafe_allow_html=True,
-        )
-        st.caption(f"{assessment.clause} · {assessment.metadata_status}")
-        if assessment.test_required:
-            st.info(
-                "Note 3 (Table B.1): RB-1/RB-2 amplitudes require physical test "
-                "verification (ASTM F2137 / GOST R 56066-2014) recorded in the "
-                "technical passport."
-            )
-
+    with col_passport:
         st.markdown("**Per-Axis Classification**")
         axis_table = build_per_axis_table(assessment.per_axis_levels)
         st.dataframe(
             axis_table.drop(columns=["color"]),
             use_container_width=True, hide_index=True,
         )
-
-        active = sum(1 for r in assessment.restraints if r["met"])
-        st.metric("Active Requirements", active,
-                  f"of {len(assessment.restraints)} evaluated (V11)")
-        st.markdown("**Restraint Requirements**")
-        for rule in assessment.restraints:
-            icon = "🟠" if rule["met"] else "⚪"
-            weight = "600" if rule["met"] else "400"
-            color = "#e65100" if rule["met"] else "#9e9e9e"
+        active_rules = [r for r in assessment.restraints if r["met"]]
+        st.markdown(
+            f"**Restraints — {len(active_rules)} of "
+            f"{len(assessment.restraints)} active**"
+        )
+        for rule in active_rules:
             st.markdown(
-                f'<div style="padding:6px 10px;border-left:3px solid {color};'
-                f'margin:4px 0;">{icon} <b style="color:{color};font-weight:{weight};">'
-                f'{rule["requirement"]}</b><br>'
-                f'<small>{rule["condition"]} · {rule["clause"]}'
-                + (f' · <i>{rule["note"]}</i>' if rule.get("note") else "")
-                + "</small></div>",
-                unsafe_allow_html=True,
+                f"🟠 **{rule['requirement']}** ({rule['condition']}, {rule['clause']})"
             )
-
-        st.markdown("**Violation Traceability**")
-        trace_rows = []
-        for interval in results["jerk_verdict"]["violation_intervals"]:
-            trace_rows.append({
-                "Rule": "Jerk (B.5)", "Start Time": interval["start_s"],
-                "End Time": interval["end_s"],
-                "Peak Value": f'{interval["peak_jerk_g_per_s"]:.2f} g/s',
-                "Clause": interval["clause"],
-            })
-        for interval in results["combined"]["triaxial_violations"]:
-            trace_rows.append({
-                "Rule": "3D combined (B.6)", "Start Time": interval["start_s"],
-                "End Time": interval["end_s"],
-                "Peak Value": f'{interval["peak_ratio"]:.2f}',
-                "Clause": interval["clause"],
-            })
-        for violation in results["dose"]["recovery_violations"]:
-            trace_rows.append({
-                "Rule": "Cumulative dose recovery (B.15)",
-                "Start Time": f'between impulses {violation["between_ids"][0]}'
-                              f'-{violation["between_ids"][1]}',
-                "End Time": None,
-                "Peak Value": f'min {violation["min_g"]:.2f} g',
-                "Clause": violation["clause"],
-            })
-        if trace_rows:
-            st.dataframe(pd.DataFrame(trace_rows), use_container_width=True,
-                         hide_index=True)
-        else:
-            st.success("No violations recorded — full traceability table is empty.")
-
-        st.divider()
+        if not active_rules:
+            st.caption("No restraint requirement triggered by these peaks.")
         st.markdown("**Export Report**")
         source_label = st.session_state.get("loaded_path", "uploaded signal")
         json_report = build_report(results)
@@ -784,13 +784,13 @@ def render_dashboard() -> None:
         stem = report_file_stem()
         dl1, dl2 = st.columns(2)
         dl1.download_button(
-            "📄 Download JSON Report",
+            "📄 JSON Report",
             data=json.dumps(json_report, indent=2, ensure_ascii=False).encode("utf-8"),
             file_name=f"{stem}.json",
             mime="application/json",
         )
         dl2.download_button(
-            "📝 Download Summary Text",
+            "📝 Summary Text",
             data=text_report.encode("utf-8"),
             file_name=f"{stem}.txt",
             mime="text/plain",
