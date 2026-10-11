@@ -593,35 +593,6 @@ def render_dashboard() -> None:
         st.info("Load a dataset or upload a signal file from the sidebar to begin.")
         return
 
-    st.subheader("Column Mapping")
-    st.caption("Map the uploaded logger columns onto the canonical axes.")
-    columns = ["(none)"] + list(raw_frame.columns)
-    default_map = suggest_default_mapping(list(raw_frame.columns))
-    mapping_selection = {
-        canonical: st.selectbox(
-            canonical, columns, index=columns.index(default_map[canonical])
-        )
-        for canonical in ("time", "ax", "ay", "az")
-    }
-
-    try:
-        column_mapping = build_column_mapping(mapping_selection)
-        sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
-        results = run_evaluation_pipeline(
-            raw_frame, column_mapping, sampling_rate,
-            None, invert, device_class,
-        )
-    except Exception as exc:  # noqa: BLE001 — surface to operator
-        st.error(f"Configuration error: {exc}")
-        return
-
-    metadata = results["metadata"]
-    st.success(
-        f"Signal ready — {len(results['filtered'])} samples @ {results['fs']:.1f} Hz · "
-        f"unit g · inverted: "
-        f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
-    )
-
     tab_overview, tab_overall, tab_signal, tab_passport = st.tabs(TAB_TITLES)
 
     st.subheader("Column Mapping")
