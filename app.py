@@ -595,43 +595,43 @@ def render_dashboard() -> None:
 
     tab_overview, tab_overall, tab_signal, tab_passport = st.tabs(TAB_TITLES)
 
-    st.subheader("Column Mapping")
-    st.caption("Map the uploaded logger columns onto the canonical axes.")
-    columns = ["(none)"] + list(raw_frame.columns)
-    default_map = suggest_default_mapping(list(raw_frame.columns))
-    map_cols = st.columns(4)
-    mapping_selection = {}
-    for map_col, canonical in zip(map_cols, ("time", "ax", "ay", "az")):
-        with map_col:
-            mapping_selection[canonical] = st.selectbox(
-                canonical, columns, index=columns.index(default_map[canonical])
-            )
-
-    try:
-        column_mapping = build_column_mapping(mapping_selection)
-        sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
-        results = run_evaluation_pipeline(
-            raw_frame, column_mapping, sampling_rate,
-            None, invert, device_class,
-        )
-    except Exception as exc:  # noqa: BLE001 — surface to operator
-        st.error(f"Configuration error: {exc}")
-        return
-
-    metadata = results["metadata"]
-    filtered = results["filtered"]
-    jerk_verdict = results["jerk_verdict"]
-    dose = results["dose"]
-    combined = results["combined"]
-    assessment = results["assessment"]
-
-    st.success(
-        f"Signal ready — {len(filtered)} samples @ {results['fs']:.1f} Hz · "
-        f"unit g · inverted: "
-        f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
-    )
-
     with tab_overview:
+        st.subheader("Column Mapping")
+        st.caption("Map the uploaded logger columns onto the canonical axes.")
+        columns = ["(none)"] + list(raw_frame.columns)
+        default_map = suggest_default_mapping(list(raw_frame.columns))
+        map_cols = st.columns(4)
+        mapping_selection = {}
+        for map_col, canonical in zip(map_cols, ("time", "ax", "ay", "az")):
+            with map_col:
+                mapping_selection[canonical] = st.selectbox(
+                    canonical, columns, index=columns.index(default_map[canonical])
+                )
+
+        try:
+            column_mapping = build_column_mapping(mapping_selection)
+            sampling_rate = None if fs_mode == "Auto (from time)" else float(fs_manual)
+            results = run_evaluation_pipeline(
+                raw_frame, column_mapping, sampling_rate,
+                None, invert, device_class,
+            )
+        except Exception as exc:  # noqa: BLE001 — surface to operator
+            st.error(f"Configuration error: {exc}")
+            return
+
+        metadata = results["metadata"]
+        filtered = results["filtered"]
+        jerk_verdict = results["jerk_verdict"]
+        dose = results["dose"]
+        combined = results["combined"]
+        assessment = results["assessment"]
+
+        st.success(
+            f"Signal ready — {len(filtered)} samples @ {results['fs']:.1f} Hz · "
+            f"unit g · inverted: "
+            f"{', '.join(a for a, v in metadata['axis_inversions'].items() if v) or 'none'}"
+        )
+
         o1, o2, o3, o4 = st.columns(4)
         o1.metric("Samples", f"{len(filtered):,}")
         o2.metric("Sampling rate", f"{results['fs']:.0f} Hz")
