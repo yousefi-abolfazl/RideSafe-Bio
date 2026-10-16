@@ -160,6 +160,18 @@ def build_compliance_banner_html(compliant: bool) -> str:
     )
 
 
+def _status_card_html(title: str, border_color: str, badge: str, detail: str) -> str:
+    """Colored status card for the Overall Safety Check tab (pure helper)."""
+    return (
+        f'<div style="background:rgba(128,128,128,0.08);border:2px solid {border_color};'
+        f'border-radius:12px;padding:10px 12px;text-align:center;margin:4px 0;">'
+        f'<div style="font-size:15px;font-weight:800;">{title}</div>'
+        f'<div style="font-size:14px;font-weight:800;color:{border_color};">{badge}</div>'
+        f'<div style="font-size:12px;">{detail}</div></div>'
+    )
+
+
+
 def build_per_axis_table(levels: dict[str, str | None]) -> pd.DataFrame:
     """Per-axis classification rows with badge colors for conditional styling."""
     rows = []
@@ -656,50 +668,44 @@ def render_dashboard() -> None:
         st.caption("First 12 rows of the filtered signal (time, ax, ay, az).")
 
     with tab_overall:
-        if jerk_verdict["compliant"]:
-            st.success(
-                f"🧪 **Jerk B.5 — PASS** · max "
-                f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s · limit "
-                f"{jerk_verdict['active_limit_g_per_s']} g/s "
-                f"({jerk_verdict['device_class']})"
-            )
-        else:
-            st.error(
-                f"🧪 **Jerk B.5 — FAIL** · max "
-                f"{jerk_verdict['max_jerk_g_per_s']:.2f} g/s · limit "
-                f"{jerk_verdict['active_limit_g_per_s']} g/s "
-                f"({jerk_verdict['device_class']})"
-            )
+        jerk_ok = jerk_verdict["compliant"]
         dose_ok = dose["dose_compliant"] and dose["recovery_compliant"]
-        dose_banner = (
-            f"⚡ **Cumulative dose & recovery B.15 — "
-            f"{'PASS' if dose_ok else 'FAIL'}** · dose "
-            f"{dose['total_dose_g_s']:.0f} / {dose['tolerance_g_s']:.0f} g·s · "
-            f"recovery {'OK' if dose['recovery_compliant'] else 'VIOLATED'}"
-        )
-        if dose_ok:
-            st.success(dose_banner)
-        else:
-            st.error(dose_banner)
-        if combined["compliant"]:
-            st.success(
-                f"🎯 **3D Ellipsoid B.6 — PASS** · max ratio "
-                f"{combined['max_ratio_3d']:.3f} · "
-                f"{len(combined['triaxial_violations'])} unsafe interval(s)"
-            )
-        else:
-            st.error(
-                f"🎯 **3D Ellipsoid B.6 — FAIL** · max ratio "
-                f"{combined['max_ratio_3d']:.3f} · "
-                f"{len(combined['triaxial_violations'])} unsafe interval(s)"
-            )
-        st.info(
-            f"🧬 **Biomechanical risk: {assessment.overall_rb}"
-            f" ({assessment.extremity} extremity)** — physical test verification "
-            f"{'REQUIRED (Table B.1 Note 3)' if assessment.test_required else 'not required'}"
-        )
+        c1, c2, c3, c4 = st.columns(4)
+
+        jerk_border = "#2e7d32" if jerk_ok else "#b71c1c"
+        jerk_badge = "🟢 PASS" if jerk_ok else "🔴 FAIL"
+        c1.markdown(_status_card_html(
+            "🧪 Jerk B.5", jerk_border, jerk_badge,
+            f"max {jerk_verdict['max_jerk_g_per_s']:.2f} g/s<br>"
+            f"limit {jerk_verdict['active_limit_g_per_s']} g/s "
+            f"({jerk_verdict['device_class']})",
+        ), unsafe_allow_html=True)
+
+        dose_border = "#2e7d32" if dose_ok else "#b71c1c"
+        dose_badge = "🟢 PASS" if dose_ok else "🔴 FAIL"
+        c2.markdown(_status_card_html(
+            "⚡ Dose & Recovery", dose_border, dose_badge,
+            f"dose {dose['total_dose_g_s']:.0f} / {dose['tolerance_g_s']:.0f} g·s<br>"
+            f"recovery {'OK' if dose['recovery_compliant'] else 'VIOLATED'}",
+        ), unsafe_allow_html=True)
+
+        ell_border = "#2e7d32" if combined["compliant"] else "#b71c1c"
+        ell_badge = "🟢 PASS" if combined["compliant"] else "🔴 FAIL"
+        c3.markdown(_status_card_html(
+            "🎯 3D Ellipsoid", ell_border, ell_badge,
+            f"max ratio {combined['max_ratio_3d']:.3f}<br>"
+            f"{len(combined['triaxial_violations'])} unsafe interval(s)",
+        ), unsafe_allow_html=True)
+
+        test_mark = "REQUIRED" if assessment.test_required else "not required"
+        c4.markdown(_status_card_html(
+            "🧬 Biomechanical Risk", "#0d2c4d", assessment.overall_rb,
+            f"{assessment.extremity} extremity<br>"
+            f"physical test {test_mark} (Table B.1 Note 3)",
+        ), unsafe_allow_html=True)
+
         overall_ok = (
-            jerk_verdict["compliant"] and dose["dose_compliant"]
+            jerk_ok and dose["dose_compliant"]
             and dose["recovery_compliant"] and combined["compliant"]
         )
         st.markdown(build_compliance_banner_html(overall_ok), unsafe_allow_html=True)
@@ -722,49 +728,53 @@ def render_dashboard() -> None:
             "markers — hover a marker for clause, time and amplitude."
         )
 
-    col_3d, col_passport = st.columns([1.1, 0.9])
-    with col_3d:
-        st.plotly_chart(
-            plot_3d_ellipsoid(filtered, combined), use_container_width=True
-        )
-        st.caption(
-            "Acceleration vector vs the B.6 ellipsoid (green: inside, red x: outside)."
-        )
-    with col_passport:
-        st.markdown("**Per-Axis Classification**")
-        axis_table = build_per_axis_table(assessment.per_axis_levels)
-        st.dataframe(
-            axis_table.drop(columns=["color"]),
-            use_container_width=True, hide_index=True,
-        )
-        active_rules = [r for r in assessment.restraints if r["met"]]
-        st.markdown(
-            f"**Restraints — {len(active_rules)} of "
-            f"{len(assessment.restraints)} active**"
-        )
-        for rule in active_rules:
-            st.markdown(
-                f"🟠 **{rule['requirement']}** ({rule['condition']}, {rule['clause']})"
+    with tab_passport:
+        col_3d, col_pass = st.columns([1.1, 0.9])
+        with col_3d:
+            st.plotly_chart(
+                plot_3d_ellipsoid(filtered, combined), use_container_width=True
             )
-        if not active_rules:
-            st.caption("No restraint requirement triggered by these peaks.")
-        st.markdown("**Export Report**")
-        source_label = st.session_state.get("loaded_path", "uploaded signal")
-        json_report = build_report(results)
-        text_report = build_text_report(results, source_name=source_label)
-        stem = report_file_stem()
-        dl1, dl2 = st.columns(2)
-        dl1.download_button(
-            "📄 JSON Report",
-            data=json.dumps(json_report, indent=2, ensure_ascii=False).encode("utf-8"),
-            file_name=f"{stem}.json",
-            mime="application/json",
-        )
-        dl2.download_button(
-            "📝 Summary Text",
-            data=text_report.encode("utf-8"),
-            file_name=f"{stem}.txt",
-            mime="text/plain",
-        )
+            st.caption(
+                "Acceleration vector vs the B.6 ellipsoid "
+                "(green: inside, red x: outside)."
+            )
+        with col_pass:
+            st.markdown("**Per-Axis Classification**")
+            axis_table = build_per_axis_table(assessment.per_axis_levels)
+            st.dataframe(
+                axis_table.drop(columns=["color"]),
+                use_container_width=True, hide_index=True,
+            )
+            active_rules = [r for r in assessment.restraints if r["met"]]
+            st.markdown(
+                f"**Restraints — {len(active_rules)} of "
+                f"{len(assessment.restraints)} active**"
+            )
+            for rule in active_rules:
+                st.markdown(
+                    f"🟠 **{rule['requirement']}** ({rule['condition']}, {rule['clause']})"
+                )
+            if not active_rules:
+                st.caption("No restraint requirement triggered by these peaks.")
+            st.markdown("**Export Report**")
+            source_label = st.session_state.get("loaded_path", "uploaded signal")
+            json_report = build_report(results)
+            text_report = build_text_report(results, source_name=source_label)
+            stem = report_file_stem()
+            dl1, dl2 = st.columns(2)
+            dl1.download_button(
+                "📄 JSON Report",
+                data=json.dumps(
+                    json_report, indent=2, ensure_ascii=False
+                ).encode("utf-8"),
+                file_name=f"{stem}.json",
+                mime="application/json",
+            )
+            dl2.download_button(
+                "📝 Summary Text",
+                data=text_report.encode("utf-8"),
+                file_name=f"{stem}.txt",
+                mime="text/plain",
+            )
 
 render_dashboard()

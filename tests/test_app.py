@@ -467,3 +467,11 @@ def test_dashboard_tab_structure():
         "📈 Signal & Kinematics",
         "🧬 3D Biomechanics & Passport",
     )
+
+def test_status_card_html_pass_fail_colors():
+    from app import _status_card_html
+
+    green = _status_card_html("🧪 Jerk B.5", "#2e7d32", "🟢 PASS", "max 1.00 g/s")
+    assert "🟢 PASS" in green and "#2e7d32" in green and "Jerk B.5" in green
+    red = _status_card_html("🧪 Jerk B.5", "#b71c1c", "🔴 FAIL", "max 99.00 g/s")
+    assert "🔴 FAIL" in red and "#b71c1c" in red
