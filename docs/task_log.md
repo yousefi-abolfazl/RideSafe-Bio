@@ -610,3 +610,14 @@
   | `app.py` | هلپر خالص `_status_card_html` + ۴ کارت Jerk/Dose/3D/Risk با حاشیه سبز/قرمز + `col_3d/col_passport` داخل `with tab_passport:` | فیدبک کارفرما | صفر المان مشترک بیرون تب‌ها |
   | `tests/test_app.py` | +۱ تست pin هلپر کارت (`test_status_card_html_pass_fail_colors`) | بند ۷ | ۱۴۴/۱۴۴ |
 - **Result / Validation:** ۱۴۴/۱۴۴ (۱۴۳ + ۱ جدید) — صفر شکست؛ Smoke داشبورد HTTP 200 + صفر Traceback؛ `src/` دست‌نخورده.
+
+### DevOps — آماده‌سازی استقرار Streamlit Community Cloud ✅
+
+- **Goal:** پین نسخه‌های وابستگی برای Build ابر + ترک شدن asset راهنمای محور + همگام‌سازی کامل `main` با origin.
+- **Changes:**
+  | فایل | تغییر | دلیل | نتیجه |
+  |---|---|---|---|
+  | `requirements.txt` | پین دقیق نسخه‌های اعتبارسنجی‌شده (numpy 2.5.3, scipy 1.18.1, pandas 3.0.5, streamlit 1.63.0, plotly 7.0.0, pytest 9.1.1) | جلوگیری از خطای Build روی سرور ابر | سازگار با محیط تست‌شده |
+  | `.python-version` | ایجاد با مقدار 3.12 (رانتایم پشتیبانی‌شده ابر) | نسخه 3.14 محلی روی Streamlit Cloud پشتیبانی نمی‌شود | Build ابر موفق |
+  | `assets/axis_guide.png` | افزودن به گیت (قبلاً untracked و غایب در clone) + حذف SVG قدیمی | بدون ترک asset، اکسپندر راهنمای محور روی Cloud تصویر نشان نمی‌داد | ترک شد |
+- **Result / Validation:** ۱۴۴/۱۴۴ پاس؛ `origin/main = d16ff5d` (هم‌سطح با محلی، واگرایی صفر)؛ یافتن مهم: `assets/` قبلاً در گیت نبود و تصویر راهنما در استقرار ابر گم می‌شد.
